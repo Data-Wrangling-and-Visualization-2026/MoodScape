@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON, Index
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
@@ -17,7 +17,7 @@ class TrackModel(Base):
     audio_features = Column(JSON, nullable=False)  # Хранит density и другие характеристики
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     __table_args__ = (
         Index('ix_tracks_author_title', 'author', 'title', unique=True),
     )
