@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
-from sqlalchemy import select, update, delete, func, and_, or_
+from datetime import date, timedelta, datetime
+from sqlalchemy import select, update, delete, func, and_, or_, between
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from domain.entities.track import Track
@@ -23,7 +24,8 @@ class PostgresTrackRepository(TrackRepository):
                     text=track.text,
                     emotion=track.emotion,
                     emotion_intensity=track.emotion_intensity,
-                    audio_features=track.audio_features
+                    audio_features=track.audio_features,
+                    release_date=track.release_date
                 )
                 .returning(TrackModel)
             )
@@ -38,7 +40,8 @@ class PostgresTrackRepository(TrackRepository):
                 text=track.text,
                 emotion=track.emotion,
                 emotion_intensity=track.emotion_intensity,
-                audio_features=track.audio_features
+                audio_features=track.audio_features,
+                release_date=track.release_date
             )
             self.db_session.add(track_model)
             await self.db_session.commit()
@@ -60,7 +63,7 @@ class PostgresTrackRepository(TrackRepository):
             select(TrackModel)
             .where(TrackModel.author.ilike(f"%{author}%"))
             .limit(limit)
-            .order_by(TrackModel.created_at.desc())
+            .order_by(TrackModel.release_date.desc())
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -73,7 +76,7 @@ class PostgresTrackRepository(TrackRepository):
             select(TrackModel)
             .where(TrackModel.genre.ilike(f"%{genre}%"))
             .limit(limit)
-            .order_by(TrackModel.created_at.desc())
+            .order_by(TrackModel.release_date.desc())
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -95,7 +98,7 @@ class PostgresTrackRepository(TrackRepository):
                     TrackModel.emotion_intensity.between(min_intensity, max_intensity)
                 )
             )
-            .order_by(TrackModel.emotion_intensity.desc())
+            .order_by(TrackModel.release_date.desc())
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -114,7 +117,7 @@ class PostgresTrackRepository(TrackRepository):
                 )
             )
             .limit(limit)
-            .order_by(TrackModel.created_at.desc())
+            .order_by(TrackModel.release_date.desc())
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -127,7 +130,53 @@ class PostgresTrackRepository(TrackRepository):
             select(TrackModel)
             .limit(limit)
             .offset(offset)
-            .order_by(TrackModel.created_at.desc())
+            .order_by(TrackModel.release_date.desc())
+        )
+        result = await self.db_session.execute(stmt)
+        track_models = result.scalars().all()
+        
+        return [self._to_domain_entity(tm) for tm in track_models]
+
+    async def find_by_release_date_range(
+        self, 
+        start_date: date, 
+        end_date: date,
+        limit: int = 100
+    ) -> List[Track]:
+        """Find tracks released in date range"""
+        stmt = (
+            select(TrackModel)
+            .where(
+                and_(
+                    TrackModel.release_date >= start_date,
+                    TrackModel.release_date <= end_date
+                )
+            )
+            .limit(limit)
+            .order_by(TrackModel.release_date.desc())
+        )
+        result = await self.db_session.execute(stmt)
+        track_models = result.scalars().all()
+        
+        return [self._to_domain_entity(tm) for tm in track_models]
+
+    async def find_recent_releases(self, days: int = 30, limit: int = 50) -> List[Track]:
+        """Find tracks released in last N days"""
+        cutoff_date = date.today() - timedelta(days=days)
+        return await self.find_by_release_date_range(cutoff_date, date.today(), limit)
+
+    async def find_by_year(self, year: int, limit: int = 100) -> List[Track]:
+        """Find tracks released in specific year"""
+        stmt = (
+            select(TrackModel)
+            .where(
+                and_(
+                    TrackModel.release_date >= date(year, 1, 1),
+                    TrackModel.release_date <= date(year, 12, 31)
+                )
+            )
+            .limit(limit)
+            .order_by(TrackModel.release_date)
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -151,7 +200,9 @@ class PostgresTrackRepository(TrackRepository):
             select(
                 TrackModel.genre,
                 func.count(TrackModel.id).label('count'),
-                func.avg(TrackModel.emotion_intensity).label('avg_intensity')
+                func.avg(TrackModel.emotion_intensity).label('avg_intensity'),
+                func.min(TrackModel.release_date).label('oldest_release'),
+                func.max(TrackModel.release_date).label('newest_release')
             )
             .group_by(TrackModel.genre)
         )
@@ -166,17 +217,39 @@ class PostgresTrackRepository(TrackRepository):
             .group_by(TrackModel.emotion)
         )
         
+        # Statistics by year
+        year_stats = await self.db_session.execute(
+            select(
+                func.extract('year', TrackModel.release_date).label('year'),
+                func.count(TrackModel.id).label('count')
+            )
+            .group_by(func.extract('year', TrackModel.release_date))
+            .order_by(text('year desc'))
+        )
+        
         # Recently added tracks
         recent_tracks = await self.find_all(limit=10)
         
+        # Release date range
+        date_range = await self.db_session.execute(
+            select(
+                func.min(TrackModel.release_date).label('earliest_release'),
+                func.max(TrackModel.release_date).label('latest_release')
+            )
+        )
+        date_stats = date_range.first()
+        
         return {
             "total_tracks": total_count or 0,
-            "genres": [dict(row) for row in genre_stats],
-            "emotions": [dict(row) for row in emotion_stats],
+            "genres": [dict(row._mapping) for row in genre_stats],
+            "emotions": [dict(row._mapping) for row in emotion_stats],
+            "years": [dict(row._mapping) for row in year_stats],
             "recent_tracks": recent_tracks,
             "average_intensity": await self.db_session.scalar(
                 select(func.avg(TrackModel.emotion_intensity))
-            ) or 0.0
+            ) or 0.0,
+            "earliest_release": date_stats.earliest_release if date_stats else None,
+            "latest_release": date_stats.latest_release if date_stats else None
         }
 
     def _to_domain_entity(self, model: TrackModel) -> Track:
@@ -190,6 +263,7 @@ class PostgresTrackRepository(TrackRepository):
             emotion=model.emotion,
             emotion_intensity=model.emotion_intensity,
             audio_features=model.audio_features,
+            release_date=model.release_date,
             created_at=model.created_at,
             updated_at=model.updated_at
         )

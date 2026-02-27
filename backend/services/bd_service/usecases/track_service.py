@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Any
+from datetime import date, datetime, timedelta
 from domain.entities.track import Track
 from domain.repo.repo_track import TrackRepository
 
@@ -14,13 +15,17 @@ class TrackService:
         text: str,
         emotion: str,
         emotion_intensity: float,
-        audio_features: Dict[str, Any]
+        audio_features: Dict[str, Any],
+        release_date: date
     ) -> Track:
         
         existing_tracks = await self.track_repository.find_by_author(author)
         for track in existing_tracks:
             if track.title.lower() == title.lower():
                 raise ValueError(f"Track '{title}' by {author} already exists")
+
+        if release_date > date.today():
+            raise ValueError("Release date cannot be in the future")
 
         track = Track(
             id=None,
@@ -30,7 +35,8 @@ class TrackService:
             text=text.strip(),
             emotion=emotion.lower(),
             emotion_intensity=emotion_intensity,
-            audio_features=audio_features
+            audio_features=audio_features,
+            release_date=release_date
         )
 
         if not track.validate():
@@ -56,6 +62,9 @@ class TrackService:
         return await self.track_repository.find_by_author(author, limit)
 
     async def get_tracks_by_genre(self, genre: str, limit: int = 50) -> List[Track]:
+        if len(genre.strip()) < 2:
+            raise ValueError("Genre must be at least 2 characters")
+        
         return await self.track_repository.find_by_genre(genre, limit)
 
     async def get_tracks_by_emotion(
@@ -100,29 +109,139 @@ class TrackService:
             if min_intensity <= track.emotion_intensity <= max_intensity
         ][:limit]
 
+
+    async def get_tracks_by_release_year(self, year: int, limit: int = 100) -> List[Track]:
+        """Get tracks released in specific year"""
+        if year < 1900 or year > date.today().year + 1:
+            raise ValueError(f"Invalid year. Must be between 1900 and {date.today().year + 1}")
+        
+        return await self.track_repository.find_by_year(year, limit)
+
+    async def get_recent_releases(self, days: int = 30, limit: int = 50) -> List[Track]:
+        """Get tracks released in last N days"""
+        if days < 1:
+            raise ValueError("Days must be positive")
+        
+        return await self.track_repository.find_recent_releases(days, limit)
+
+    async def get_tracks_by_release_date_range(
+        self,
+        start_date: date,
+        end_date: date,
+        limit: int = 100
+    ) -> List[Track]:
+        """Get tracks released between two dates"""
+        if start_date > end_date:
+            raise ValueError("Start date must be before end date")
+        
+        if end_date > date.today():
+            raise ValueError("End date cannot be in the future")
+        
+        return await self.track_repository.find_by_release_date_range(
+            start_date, end_date, limit
+        )
+
+    async def get_tracks_by_decade(self, decade: int, limit: int = 200) -> List[Track]:
+        """Get tracks released in a specific decade (e.g., 1990 for 90s)"""
+        if decade < 1900 or decade % 10 != 0:
+            raise ValueError("Decade must be a year ending with 0 (e.g., 1990, 2000)")
+        
+        start_date = date(decade, 1, 1)
+        end_date = date(decade + 9, 12, 31)
+        
+        return await self.get_tracks_by_release_date_range(start_date, end_date, limit)
+
+    async def get_tracks_by_era(self, era: str, limit: int = 100) -> List[Track]:
+        """Get tracks by musical era"""
+        eras = {
+            "classic": (date(1950, 1, 1), date(1979, 12, 31)),
+            "eighties": (date(1980, 1, 1), date(1989, 12, 31)),
+            "nineties": (date(1990, 1, 1), date(1999, 12, 31)),
+            "two_thousands": (date(2000, 1, 1), date(2009, 12, 31)),
+            "twenty_tens": (date(2010, 1, 1), date(2019, 12, 31)),
+            "twenty_twenties": (date(2020, 1, 1), date.today())
+        }
+        
+        if era.lower() not in eras:
+            raise ValueError(f"Invalid era. Choose from: {list(eras.keys())}")
+        
+        start_date, end_date = eras[era.lower()]
+        return await self.get_tracks_by_release_date_range(start_date, end_date, limit)
+
+    async def update_track_release_date(self, track_id: int, new_release_date: date) -> Track:
+        """Update track's release date"""
+        track = await self.get_track(track_id)
+        
+        if new_release_date > date.today():
+            raise ValueError("Release date cannot be in the future")
+        
+        updated_track = Track(
+            id=track.id,
+            title=track.title,
+            author=track.author,
+            genre=track.genre,
+            text=track.text,
+            emotion=track.emotion,
+            emotion_intensity=track.emotion_intensity,
+            audio_features=track.audio_features,
+            release_date=new_release_date,
+            created_at=track.created_at,
+            updated_at=datetime.utcnow()
+        )
+        
+        return await self.track_repository.save(updated_track)
+
     async def get_track_statistics(self) -> Dict[str, Any]:
-        """Get stats """
+        """Get extended statistics with release date information"""
         stats = await self.track_repository.get_statistics()
         
-        if 'tracks' in stats:
-            tracks = stats['tracks']
-            if tracks:
-                genre_intensity = {}
-                for track in tracks:
-                    if track.genre not in genre_intensity:
-                        genre_intensity[track.genre] = []
-                    genre_intensity[track.genre].append(track.emotion_intensity)
-                
-                stats['average_intensity_by_genre'] = {
-                    genre: sum(intensities) / len(intensities)
-                    for genre, intensities in genre_intensity.items()
+        if 'recent_tracks' in stats:
+            recent_tracks = stats['recent_tracks']
+            
+            today = date.today()
+            age_categories = {
+                'new_releases': 0,      # < 1 year
+                'recent': 0,             # 1-3 year
+                'old': 0,                 # 3-10 year
+                'classic': 0              # > 10 year
+            }
+            
+            for track in recent_tracks:
+                if track.release_date:
+                    years_old = (today - track.release_date).days / 365.25
+                    if years_old < 1:
+                        age_categories['new_releases'] += 1
+                    elif years_old < 3:
+                        age_categories['recent'] += 1
+                    elif years_old < 10:
+                        age_categories['old'] += 1
+                    else:
+                        age_categories['classic'] += 1
+            
+            stats['age_distribution'] = age_categories
+        
+        if stats.get('earliest_release'):
+            earliest_tracks = await self.get_tracks_by_release_year(
+                stats['earliest_release'].year, limit=1
+            )
+            if earliest_tracks:
+                stats['oldest_track'] = {
+                    'id': earliest_tracks[0].id,
+                    'title': earliest_tracks[0].title,
+                    'author': earliest_tracks[0].author,
+                    'release_date': earliest_tracks[0].release_date
                 }
-                
-                intensity_categories = {'low': 0, 'medium': 0, 'high': 0}
-                for track in tracks:
-                    category = track.get_emotion_category()
-                    intensity_categories[category] += 1
-                
-                stats['intensity_distribution'] = intensity_categories
+        
+        if stats.get('latest_release'):
+            latest_tracks = await self.get_tracks_by_release_year(
+                stats['latest_release'].year, limit=1
+            )
+            if latest_tracks:
+                stats['newest_track'] = {
+                    'id': latest_tracks[0].id,
+                    'title': latest_tracks[0].title,
+                    'author': latest_tracks[0].author,
+                    'release_date': latest_tracks[0].release_date
+                }
         
         return stats

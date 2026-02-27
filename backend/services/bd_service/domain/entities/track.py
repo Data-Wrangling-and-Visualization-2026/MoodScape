@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime,date
 from typing import Optional, List, Dict, Any
 import re
 
@@ -14,6 +14,7 @@ class Track:
     emotion: str
     emotion_intensity: float
     audio_features: Dict[str, Any]  # Contains numeric chars (density, tempo etc)
+    release_date: date
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
