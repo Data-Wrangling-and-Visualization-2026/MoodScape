@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON, Index, Date
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
@@ -14,7 +14,8 @@ class TrackModel(Base):
     text = Column(Text, nullable=False)
     emotion = Column(String(50), nullable=False, index=True)
     emotion_intensity = Column(Float, nullable=False)
-    audio_features = Column(JSON, nullable=False)  # Хранит density и другие характеристики
+    audio_features = Column(JSON, nullable=False)
+    release_date = Column(Date, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
