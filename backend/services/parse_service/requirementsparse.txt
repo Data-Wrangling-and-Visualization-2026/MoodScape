@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+yandex-music
+lyricsgenius
+essentia-tensorflow==2.1b6.dev1389
+kafka-python
+apscheduler
+requests
+sqlalchemy
+psycopg2-binary
+python-dotenv
+tensorflow==2.20.0

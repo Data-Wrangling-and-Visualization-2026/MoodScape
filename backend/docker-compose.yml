@@ -72,6 +72,28 @@ services:
     networks:
       - bd_service_network
     restart: unless-stopped
+  parse_service_app:
+    build:
+      context: ..
+      dockerfile: backend/services/parse_service/Dockerfile
+    container_name: parse_service_app
+    ports:
+      - "${PARSE_SERVICE_PORT:-8001}:8001"
+    env_file:
+      - ../.env
+    environment:
+      PARSE_DB_URL: postgresql+psycopg2://${BD_SERVICE_DB_USER:-bd_user}:${BD_SERVICE_DB_PASSWORD:-bd_password123}@bd_service_postgres:5432/${BD_SERVICE_DB_NAME:-bd_trackdb}
+      LOCAL_AUDIO_STORAGE_PATH: /app/storage
+    depends_on:
+      bd_service_postgres:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app/backend
+      - ../storage:/app/storage
+    networks:
+      - bd_service_network
+    restart: unless-stopped
+
 
 networks:
   bd_service_network:
