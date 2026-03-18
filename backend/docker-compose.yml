@@ -73,6 +73,16 @@ services:
       - bd_service_network
     restart: unless-stopped
 
+  llm_service:
+    container_name: llm_service
+    build: ./services/llm_service
+    ports: 
+      - "${LLM_SERVICE_PORT:-8002}:8002"
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    volumes:
+      - ./services/llm_service:/app
+
 networks:
   bd_service_network:
     driver: bridge

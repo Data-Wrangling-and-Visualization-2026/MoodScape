@@ -12,11 +12,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await pipeline.start()
     logger.info("Starting the llm pipeline")
-    yield
-    await pipeline.stop()
-    logger.info("The llm service stops running")
+    task = asyncio.create_task(pipeline.start())
+    try:
+        yield
+    finally:
+        pipeline.stop()
+        task.cancel()
+        logger.info("The llm service stops running")
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -34,7 +37,7 @@ def create_app() -> FastAPI:
 
     app.include_router(router)
 
-    @app.post("/")
+    @app.get("/")
     async def root():
         return {
             "service" : "Llm service",
