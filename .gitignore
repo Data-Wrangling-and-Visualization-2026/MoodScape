@@ -434,3 +434,6 @@ config/production.yaml
 config/*.local.yaml
 !config/example.yaml
 !config/config.example.yaml
+
+# Local storage
+storage
