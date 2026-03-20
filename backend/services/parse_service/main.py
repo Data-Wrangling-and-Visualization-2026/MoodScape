@@ -20,10 +20,10 @@ async def lifespan(_: FastAPI):
     )
 
     if scheduler_enabled:
-        parse_interval_minutes = int(os.getenv("PARSE_INTERVAL_MINUTES", "5"))
-        scheduler.add_job(usecase.execute_parse, minutes=parse_interval_minutes)
-        lyrics_interval_minutes = int(os.getenv("LYRICS_INTERVAL_MINUTES", "10"))
-        scheduler.add_job(usecase.execute_lyrics_backfill, minutes=lyrics_interval_minutes)
+        parse_interval = int(os.getenv("PARSE_INTERVAL_SECONDS", "60"))
+        scheduler.add_job(usecase.execute_parse, seconds=parse_interval)
+        lyrics_interval = int(os.getenv("LYRICS_INTERVAL_SECONDS", "60"))
+        scheduler.add_job(usecase.execute_lyrics_backfill, seconds=lyrics_interval)
         scheduler.start()
 
     yield

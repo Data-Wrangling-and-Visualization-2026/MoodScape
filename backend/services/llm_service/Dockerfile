@@ -1,11 +1,13 @@
 # services/llm_service/Dockerfile
-FROM python:3.13-slim
+FROM python:latest
 
 WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    -i https://pypi.org/simple \
+    -r requirements.txt
 
 COPY . .
 

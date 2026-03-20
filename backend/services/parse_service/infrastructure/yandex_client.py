@@ -22,7 +22,7 @@ class YandexMusicClient:
         self._initialized = True
 
     def get_chart_tracks(self):
-        """Load current chart tracks from Yandex Music."""
+        """Load current chart tracks + playlists from Yandex Music."""
         self._ensure_initialized()
         chart = self.client.chart()
         playlist = chart.chart
@@ -30,7 +30,17 @@ class YandexMusicClient:
         if not playlist or not playlist.tracks:
             return []
 
-        return [item.track for item in playlist.tracks]
+        all_tracks = [item.track for item in playlist.tracks]
+        liked_playlists = self.client.users_likes_playlists()
+
+        for item in liked_playlists:
+            playlist = item.playlist
+            full_playlist = self.client.users_playlists(playlist.kind, playlist.owner.uid)
+            
+            for track_item in full_playlist.tracks:
+                all_tracks.append(track_item.track)
+
+        return all_tracks
 
     def get_discovery_tracks(self):
         """
@@ -54,3 +64,8 @@ class YandexMusicClient:
             file_obj.write(response.content)
 
         return track
+    
+    
+    def get_lyrics(self, track_id) -> str:
+        self._ensure_initialized()
+        return self.client.tracks_lyrics(track_id).fetch_lyrics()

@@ -133,7 +133,7 @@ class ParseTracksUseCase:
             "track_id": str(track.id),
             "title": track.title,
             "main_artist": cls._extract_main_artist(track),
-            "genre": getattr(track, "genre", None),
+            "genre": getattr(album_obj, "genre", None),
             "album": album_title,
             "year": int(album_year) if album_year else None,
             "duration_ms": track.duration_ms,
@@ -237,7 +237,7 @@ class ParseTracksUseCase:
         Returns cleaned lyrics when found, otherwise `None`.
         """
         try:
-            lyrics = self.genius.get_lyrics(title, main_artist)
+            lyrics = self.yandex.get_lyrics(track_id=track_id)
             clean_lyrics = self._clean_lyrics(lyrics)
 
             self.track_repository.save_analysis(track_id, lyrics=clean_lyrics)
