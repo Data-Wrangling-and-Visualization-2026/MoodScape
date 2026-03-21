@@ -84,7 +84,7 @@ services:
       PARSE_DB_URL: postgresql+psycopg2://${BD_SERVICE_DB_USER:-bd_user}:${BD_SERVICE_DB_PASSWORD:-bd_password123}@bd_service_postgres:5432/${BD_SERVICE_DB_NAME:-bd_trackdb}
       LOCAL_AUDIO_STORAGE_PATH: /app/storage
       PARSE_SCHEDULER_ENABLED: true
-      PARSE_INTERVAL_SECONDS: 60
+      PARSE_INTERVAL_SECONDS: 90
       LYRICS_INTERVAL_SECONDS: 60
       LLM_SERVICE_URL: http://llm_service:8002
     depends_on:

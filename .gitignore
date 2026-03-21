@@ -436,4 +436,4 @@ config/*.local.yaml
 !config/config.example.yaml
 
 # Local storage
-storage
+storage/
