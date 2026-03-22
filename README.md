@@ -1,4 +1,3 @@
-````md
 # MoodScape - LLM Service
 
 A service for analyzing emotions in music tracks using an LLM (Ollama). It analyzes song lyrics and audio features to determine the primary emotion and its intensity.
