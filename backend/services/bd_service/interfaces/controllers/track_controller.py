@@ -1,20 +1,26 @@
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from usecases.track_service import TrackService
 
+
 class AudioFeatures(BaseModel):
-    density: float = Field(..., ge=0, le=10, description="Sound density")
-    tempo: float = Field(..., ge=0, le=300, description="Tempo in BPM")
-    energy: float = Field(..., ge=0, le=10, description="Energy level")
-    danceability: float = Field(..., ge=0, le=10, description="Danceability")
-    acousticness: Optional[float] = Field(0, ge=0, le=10)
-    instrumentalness: Optional[float] = Field(0, ge=0, le=10)
-    liveness: Optional[float] = Field(0, ge=0, le=10)
-    valence: Optional[float] = Field(0, ge=0, le=10, description="Positivity")
+    tempo: float = Field(..., gt=0, description="Tempo in BPM")
+    energy: float = Field(..., ge=0.0, le=1.0, description="Energy level")
+    danceability: float = Field(..., ge=0.0, le=1.0, description="Danceability")
+    acousticness: float = Field(..., ge=0.0, le=1.0, description="Acousticness")
+    instrumentalness: float = Field(..., ge=0.0, le=1.0, description="Instrumentalness")
+    valence: float = Field(..., ge=0.0, le=1.0, description="Positivity")
+    key: int = Field(..., ge=0, le=11, description="Musical key")
+    mode: int = Field(..., ge=0, le=1, description="Mode (0=minor, 1=major)")
+    loudness: float = Field(..., gt=0.0, description="Loudness in dB")
+    speechiness: float = Field(..., ge=0.0, le=1.0, description="Speechiness")
+    duration: float = Field(..., gt=0.0, description="Duration in seconds")
+
 
 class CreateTrackRequest(BaseModel):
+    id: int = Field(..., description="Track ID")
     title: str = Field(..., min_length=1, max_length=255)
     author: str = Field(..., min_length=2, max_length=255)
     genre: str = Field(..., min_length=2, max_length=100)
@@ -24,20 +30,23 @@ class CreateTrackRequest(BaseModel):
     audio_features: AudioFeatures
     release_date: date = Field(..., description="Track release date (YYYY-MM-DD)")
 
-    @validator('emotion')
-    def validate_emotion(cls, v):
-        valid_emotions = {'joy', 'sadness', 'anger', 'fear', 'surprise', 'love', 'calm', 'energy'}
+    @field_validator('emotion')
+    @classmethod
+    def validate_emotion(cls, v: str) -> str:
+        valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
         if v.lower() not in valid_emotions:
             raise ValueError(f'Emotion must be one of: {valid_emotions}')
         return v.lower()
 
-    @validator('release_date')
-    def validate_release_date(cls, v):
+    @field_validator('release_date')
+    @classmethod
+    def validate_release_date(cls, v: date) -> date:
         if v > date.today():
             raise ValueError('Release date cannot be in the future')
         if v < date(1900, 1, 1):
             raise ValueError('Release date cannot be before 1900')
         return v
+
 
 class UpdateTrackRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -46,14 +55,16 @@ class UpdateTrackRequest(BaseModel):
     emotion_intensity: Optional[float] = Field(None, ge=0, le=10)
     release_date: Optional[date] = Field(None, description="Track release date")
 
-    @validator('release_date')
-    def validate_release_date(cls, v):
+    @field_validator('release_date')
+    @classmethod
+    def validate_release_date(cls, v: Optional[date]) -> Optional[date]:
         if v is not None:
             if v > date.today():
                 raise ValueError('Release date cannot be in the future')
             if v < date(1900, 1, 1):
                 raise ValueError('Release date cannot be before 1900')
         return v
+
 
 class TrackResponse(BaseModel):
     id: int
@@ -68,10 +79,11 @@ class TrackResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
     average_score: Optional[float] = None
-    year: Optional[int] = None  # Computed field for convenience
+    year: Optional[int] = None
 
     class Config:
         from_attributes = True
+
 
 class TrackController:
     def __init__(self, track_service: TrackService):
@@ -89,26 +101,24 @@ class TrackController:
         self.router.get("/by-author/{author}", response_model=List[TrackResponse])(self.get_tracks_by_author)
         self.router.get("/by-genre/{genre}", response_model=List[TrackResponse])(self.get_tracks_by_genre)
         self.router.get("/by-emotion/{emotion}", response_model=List[TrackResponse])(self.get_tracks_by_emotion)
-        
-        # New routes for release date operations
         self.router.get("/by-year/{year}", response_model=List[TrackResponse])(self.get_tracks_by_year)
         self.router.get("/recent/", response_model=List[TrackResponse])(self.get_recent_releases)
         self.router.get("/by-decade/{decade}", response_model=List[TrackResponse])(self.get_tracks_by_decade)
         self.router.get("/by-era/{era}", response_model=List[TrackResponse])(self.get_tracks_by_era)
         self.router.get("/by-date-range/", response_model=List[TrackResponse])(self.get_tracks_by_date_range)
-        
         self.router.get("/statistics/", response_model=Dict[str, Any])(self.get_statistics)
 
     async def create_track(self, request: CreateTrackRequest) -> TrackResponse:
         try:
             track = await self.track_service.create_track(
+                id=request.id,
                 title=request.title,
                 author=request.author,
                 genre=request.genre,
                 text=request.text,
                 emotion=request.emotion,
                 emotion_intensity=request.emotion_intensity,
-                audio_features=request.audio_features.dict(),
+                audio_features=request.audio_features.model_dump(),
                 release_date=request.release_date
             )
             return self._enrich_track_response(track)
@@ -130,7 +140,6 @@ class TrackController:
         try:
             track = await self.track_service.get_track(track_id)
             
-            # Update fields if provided
             if request.title:
                 track.title = request.title
             if request.genre:
@@ -140,7 +149,6 @@ class TrackController:
             if request.emotion_intensity is not None:
                 track.emotion_intensity = request.emotion_intensity
             if request.release_date:
-                # Use special method to update release date
                 updated_track = await self.track_service.update_track_release_date(
                     track_id, request.release_date
                 )
@@ -165,16 +173,14 @@ class TrackController:
         self,
         limit: int = Query(100, ge=1, le=1000),
         offset: int = Query(0, ge=0),
-        sort_by: str = Query("release_date", regex="^(release_date|created_at|title|author)$"),
-        sort_order: str = Query("desc", regex="^(asc|desc)$")
+        sort_by: str = Query("release_date", pattern="^(release_date|created_at|title|author)$"),
+        sort_order: str = Query("desc", pattern="^(asc|desc)$")
     ) -> List[TrackResponse]:
-        """Get list of tracks with sorting options"""
         tracks = await self.track_service.track_repository.find_all(
             limit=limit, 
             offset=offset
         )
         
-        # Sort results
         if sort_by == "release_date":
             tracks.sort(key=lambda t: t.release_date, reverse=(sort_order == "desc"))
         elif sort_by == "created_at":
@@ -227,14 +233,11 @@ class TrackController:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    # New methods for release date operations
-
     async def get_tracks_by_year(
         self,
         year: int,
         limit: int = Query(100, ge=1, le=500)
     ) -> List[TrackResponse]:
-        """Get tracks released in specific year"""
         try:
             tracks = await self.track_service.get_tracks_by_release_year(year, limit)
             return [self._enrich_track_response(track) for track in tracks]
@@ -246,7 +249,6 @@ class TrackController:
         days: int = Query(30, ge=1, le=365, description="Number of days"),
         limit: int = Query(50, ge=1, le=200)
     ) -> List[TrackResponse]:
-        """Get tracks released in last N days"""
         tracks = await self.track_service.get_recent_releases(days, limit)
         return [self._enrich_track_response(track) for track in tracks]
 
@@ -255,7 +257,6 @@ class TrackController:
         decade: int,
         limit: int = Query(200, ge=1, le=1000)
     ) -> List[TrackResponse]:
-        """Get tracks released in specific decade (e.g., 1990 for 90s)"""
         try:
             tracks = await self.track_service.get_tracks_by_decade(decade, limit)
             return [self._enrich_track_response(track) for track in tracks]
@@ -267,7 +268,6 @@ class TrackController:
         era: str,
         limit: int = Query(100, ge=1, le=500)
     ) -> List[TrackResponse]:
-        """Get tracks by musical era (classic, eighties, nineties, etc.)"""
         try:
             tracks = await self.track_service.get_tracks_by_era(era, limit)
             return [self._enrich_track_response(track) for track in tracks]
@@ -280,7 +280,6 @@ class TrackController:
         end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
         limit: int = Query(100, ge=1, le=500)
     ) -> List[TrackResponse]:
-        """Get tracks released between two dates"""
         try:
             tracks = await self.track_service.get_tracks_by_release_date_range(
                 start_date, end_date, limit
@@ -290,12 +289,10 @@ class TrackController:
             raise HTTPException(status_code=400, detail=str(e))
 
     async def get_statistics(self) -> Dict[str, Any]:
-        """Get extended statistics"""
         return await self.track_service.get_track_statistics()
 
     def _enrich_track_response(self, track) -> TrackResponse:
-        """Enriches response with additional computed fields"""
-        response = TrackResponse.from_orm(track)
+        response = TrackResponse.model_validate(track)
         response.average_score = track.calculate_average_score()
         response.year = track.release_date.year if track.release_date else None
         return response

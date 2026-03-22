@@ -105,6 +105,15 @@ services:
       - "${LLM_SERVICE_PORT:-8002}:8002"
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    environment:
+    # Ollama
+    - OLLAMA_URL=http://ollama:11434
+    - OLLAMA_MODEL=llama3.2:3b
+    - TEMPERATURE=0.3
+    - PARSER_URL=http://parse_service_app:8001
+    - BD_URL=http://bd_service_app:8000
+    - PARSER_TIMEOUT=30
+    
     volumes:
       - ./services/llm_service:/app
     networks:
@@ -138,8 +147,8 @@ services:
       sh -c "
         echo 'Ожидание запуска Ollama...';
         sleep 10;
-        echo 'Загрузка модели llama3.2...';
-        curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"llama3.2:1b\"}';
+        echo 'Загрузка модели llama3.1...';
+        curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"llama3.2:3b\"}';
         echo 'Загрузка модели nomic-embed-text...';
         curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"nomic-embed-text\"}';
         echo 'Инициализация завершена.';
