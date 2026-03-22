@@ -161,41 +161,191 @@ class ParseTracksUseCase:
             "dsp": analysis.get("dsp"),
         }
 
-    def _maybe_notify_llm(self, track_id: str) -> None:
+    def _prepare_llm_payload(self, bundle: dict) -> dict | None:
         """
-        Notify llm_service only when the full payload is ready.
+        Prepare payload for llm_service in the required format (TrackCSV model).
+        """
+        metadata = bundle["metadata"]
+        analysis = bundle.get("analysis") or {}
+        dsp_data = analysis.get("dsp", {})
+        
+        # Get lyrics from analysis
+        lyrics = analysis.get("lyrics")
+        if not lyrics:
+            return None
+        
+        # Prepare the payload in the exact format expected by TrackCSV model
+        payload = {
+            "id": int(metadata["track_id"]),  # TrackCSV expects 'id' field
+            "track_id": int(metadata["track_id"]),  # Also has track_id field
+            "lyrics": lyrics,
+            "title": metadata["title"],
+            "main_artist": metadata["main_artist"],
+            "artists": metadata["main_artist"],
+            "genre": metadata.get("genre") or "",
+            "album": metadata.get("album") or "",
+            "year": metadata.get("year") or 0,
+            "duration_ms": metadata.get("duration_ms") or 0,
+            # DSP features
+            "mode": dsp_data.get("mode", 0),
+            "tempo": dsp_data.get("tempo", 0.0),
+            "energy": dsp_data.get("energy", 0.0),
+            "valence": dsp_data.get("valence", 0.0),
+            "loudness": dsp_data.get("loudness", 0.0),
+            "speechiness": dsp_data.get("speechiness", 0.0),
+            "acousticness": dsp_data.get("acousticness", 0.0),
+            "danceability": dsp_data.get("danceability", 0.0),
+            "instrumentalness": dsp_data.get("instrumentalness", 0.0),
+        }
+        
+        return payload
+
+    def _check_and_send_to_llm(self, track_id: str) -> None:
+        """
+        Check if all data is available after DSP analysis.
+        If yes - send to LLM, if no - do nothing.
         """
         if not self.llm_push_enabled:
             return
 
-        bundle = self.track_repository.get_track_bundle(track_id)
-        if bundle is None:
+        try:
+            bundle = self.track_repository.get_track_bundle(track_id)
+            if bundle is None:
+                return
+
+            status = bundle["status"]
+            metadata = bundle["metadata"]
+            analysis = bundle.get("analysis") or {}
+            
+            # Check if ALL required data is available
+            all_data_ready = (
+                status["metadata_available"] and
+                status["audio_available"] and
+                status["dsp_processed"] and
+                status["lyrics_available"] and
+                not status["sent_to_llm"] and
+                metadata.get("title") and
+                metadata.get("main_artist") and
+                analysis.get("lyrics") is not None and
+                analysis.get("dsp") is not None
+            )
+            
+            if not all_data_ready:
+                # Data not ready, do nothing
+                self._logger.debug(f"Track {track_id}: not all data ready for LLM")
+                return
+
+            # All data is ready, prepare and send payload
+            payload = self._prepare_llm_payload(bundle)
+            if not payload:
+                self._logger.warning(f"Failed to prepare payload for track_id={track_id}")
+                return
+
+            # Send to LLM service
+            success = self.llm.send_for_analysis(payload)
+            
+            if success:
+                self.track_repository.update_status(
+                    track_id,
+                    sent_to_llm=True,
+                    error_message=None,
+                )
+                self._logger.info(f"Successfully sent track {track_id} to LLM service")
+            else:
+                # Failed to send, but we don't retry - just log
+                self._logger.error(f"Failed to send track {track_id} to LLM service")
+                self.track_repository.update_status(
+                    track_id,
+                    sent_to_llm=False,
+                    error_message="Failed to send to LLM service (will not retry)"
+                )
+                    
+        except Exception as e:
+            self._logger.exception(f"Error checking/sending to LLM for track {track_id}: {e}")
+
+    def _maybe_notify_llm(self, track_id: str) -> None:
+        """
+        Notify llm_service only when the full payload is ready (DSP + lyrics + metadata).
+        """
+        if not self.llm_push_enabled:
             return
 
-        status = bundle["status"]
-        ready = (
-            status["metadata_available"]
-            and status["audio_available"]
-            and status["dsp_processed"]
-            and status["lyrics_available"]
-            and not status["sent_to_llm"]
-        )
-        if not ready:
-            return
+        try:
+            bundle = self.track_repository.get_track_bundle(track_id)
+            if bundle is None:
+                self._logger.debug(f"Bundle not found for track_id={track_id}")
+                return
 
-        sent = self.llm.start_analysis(track_id)
-        if sent:
+            status = bundle["status"]
+            metadata = bundle["metadata"]
+            analysis = bundle.get("analysis") or {}
+            
+            # Check if all required data is available
+            ready = (
+                status["metadata_available"] and
+                status["audio_available"] and
+                status["dsp_processed"] and
+                status["lyrics_available"] and
+                not status["sent_to_llm"] and
+                metadata.get("title") and
+                metadata.get("main_artist") and
+                analysis.get("lyrics") is not None and
+                analysis.get("dsp") is not None
+            )
+            
+            if not ready:
+                # Log what's missing for debugging
+                missing = []
+                if not status["metadata_available"]: missing.append("metadata")
+                if not status["audio_available"]: missing.append("audio")
+                if not status["dsp_processed"]: missing.append("dsp")
+                if not status["lyrics_available"]: missing.append("lyrics")
+                if status["sent_to_llm"]: missing.append("already_sent")
+                if not metadata.get("title"): missing.append("title")
+                if not metadata.get("main_artist"): missing.append("main_artist")
+                if analysis.get("lyrics") is None: missing.append("lyrics_data")
+                if analysis.get("dsp") is None: missing.append("dsp_data")
+                
+                self._logger.debug(
+                    f"Track {track_id} not ready for LLM. Missing: {missing}"
+                )
+                return
+
+            # Prepare payload in the required format
+            payload = self._prepare_llm_payload(bundle)
+            if not payload:
+                self._logger.warning(
+                    f"Failed to prepare payload for track_id={track_id}"
+                )
+                return
+
+            # Send to LLM service
+            success = self.llm.send_for_analysis(payload)
+            
+            if success:
+                self.track_repository.update_status(
+                    track_id,
+                    sent_to_llm=True,
+                    error_message=None,
+                )
+                self._logger.info(f"Successfully sent track {track_id} to LLM service")
+            else:
+                error_msg = f"Failed to send track {track_id} to LLM service"
+                self.track_repository.update_status(
+                    track_id,
+                    sent_to_llm=False,
+                    error_message=error_msg,
+                )
+                self._logger.error(error_msg)
+                
+        except Exception as e:
+            self._logger.exception(f"Error notifying LLM for track {track_id}: {e}")
             self.track_repository.update_status(
                 track_id,
-                sent_to_llm=True,
-                error_message=None,
-            )
-        else:
-            self.track_repository.update_status(
-                track_id,
-                error_message="Failed to notify llm_service",
+                error_message=f"LLM notification error: {str(e)}"
             )
 
+        
     def _build_local_audio_path(self, track_id: str, extension: str = "mp3") -> str:
         """Build deterministic path for storing a downloaded audio file."""
         return os.path.join(self.audio_root, f"{track_id}.{extension}")
@@ -211,25 +361,53 @@ class ParseTracksUseCase:
             error_message=None,
         )
 
+        # Extract DSP features
         dsp = self.analyze_audio(
             local_audio_path,
             yandex_duration_ms=metadata.get("duration_ms"),
         )
+        
+        # Try to get lyrics from Yandex Music
+        lyrics = None
+        has_lyrics = False
+        
         try:
             lyrics = self.yandex.get_lyrics(track_id=track_id)
             clean_lyrics = self._clean_lyrics(lyrics)
-            self.track_repository.save_analysis(track_id, dsp=dsp.__dict__, lyrics=clean_lyrics)
+            has_lyrics = bool(clean_lyrics)
+            
+            # Save both DSP and lyrics
+            self.track_repository.save_analysis(
+                track_id, 
+                dsp=dsp.__dict__, 
+                lyrics=clean_lyrics
+            )
+            
+            self._logger.info(f"Track {track_id}: DSP processed, lyrics={'found' if has_lyrics else 'not found'}")
+            
         except yandex_music.exceptions.NotFoundError:
+            # No lyrics available in Yandex
             self.track_repository.save_analysis(track_id, dsp=dsp.__dict__, lyrics=None)
+            self._logger.info(f"Track {track_id}: DSP processed, no lyrics available")
+            
+        except Exception as e:
+            # Other errors during lyrics fetch
+            self._logger.exception(f"Error fetching lyrics for {track_id}: {e}")
+            self.track_repository.save_analysis(track_id, dsp=dsp.__dict__, lyrics=None)
+
+        # Update DSP and lyrics status
         self.track_repository.update_status(
             track_id,
             dsp_processed=True,
-            error_message=None,
+            lyrics_available=has_lyrics,
+            error_message=None if has_lyrics else "No lyrics available"
         )
-
-        self._maybe_notify_llm(track_id)
+        
+        # AFTER DSP and lyrics are processed - check if we can send to LLM
+        self._check_and_send_to_llm(track_id)
+        
         return self.track_repository.get_track_bundle(track_id)
-
+    
     def _fetch_and_store_lyrics(
         self,
         *,
