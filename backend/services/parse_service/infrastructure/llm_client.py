@@ -5,7 +5,7 @@ import requests
 class LLMClient:
     def __init__(self):
         """Resolve base URL for `llm_service` callback endpoint."""
-        self.base_url = os.getenv("LLM_SERVICE_URL", "http://localhost:8002")
+        self.base_url = os.getenv("LLM_SERVICE_URL", "http://llm_service:8002")
 
     def start_analysis(self, track_id: str) -> bool:
         """Send async trigger to llm_service. Returns True only on accepted/success."""

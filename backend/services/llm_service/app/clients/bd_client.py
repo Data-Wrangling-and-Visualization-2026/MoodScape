@@ -14,7 +14,7 @@ class BdClient:
                 f"{self.base_url}/health",
                 timeout=5
                 )
-            status = response.json.__get__("status")
+            status = response.json().get("status")
             return status == "healthy"
         except Exception as e:
             print(f"An error ocurred while checking bd health: {e}")
@@ -23,11 +23,14 @@ class BdClient:
     # retuns True if the song was loaded to db successfully 
     def load_track(self, song_analysis : TrackPost):
         try:
+            data = song_analysis.model_dump(mode='json')
+            print(f"Data being sent to BD: {data}") 
+            
             response = requests.post(
-                f"{self.base_url}/track",
-                song_analysis.model_dump(),
-                timeout = 10
-                )
+                f"{self.base_url}/tracks/",  
+                json=data,
+                timeout=10
+            )
             return response.status_code == 201
         except Exception as e:
             print(f"An error occured while loading the song: {e}")

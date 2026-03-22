@@ -7,9 +7,9 @@ class SchedulerService:
         """Create background scheduler used for periodic parsing jobs."""
         self.scheduler = BackgroundScheduler()
 
-    def add_job(self, func, minutes: int):
+    def add_job(self, func, seconds: int):
         """Register recurring interval job in minutes."""
-        self.scheduler.add_job(func, "interval", minutes=minutes)
+        self.scheduler.add_job(func, "interval", seconds=seconds)
 
     def start(self):
         """Start scheduler loop."""

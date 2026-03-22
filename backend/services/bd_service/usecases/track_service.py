@@ -3,12 +3,14 @@ from datetime import date, datetime, timedelta
 from domain.entities.track import Track
 from domain.repo.repo_track import TrackRepository
 
+
 class TrackService:
     def __init__(self, track_repository: TrackRepository):
         self.track_repository = track_repository
 
     async def create_track(
         self,
+        id: int,
         title: str,
         author: str,
         genre: str,
@@ -18,7 +20,6 @@ class TrackService:
         audio_features: Dict[str, Any],
         release_date: date
     ) -> Track:
-        
         existing_tracks = await self.track_repository.find_by_author(author)
         for track in existing_tracks:
             if track.title.lower() == title.lower():
@@ -28,7 +29,7 @@ class TrackService:
             raise ValueError("Release date cannot be in the future")
 
         track = Track(
-            id=None,
+            id=id,
             title=title.strip(),
             author=author.strip(),
             genre=genre.strip(),
@@ -73,8 +74,9 @@ class TrackService:
         min_intensity: float = 0.0,
         max_intensity: float = 10.0
     ) -> List[Track]:
-        if emotion not in Track.VALID_EMOTIONS:
-            raise ValueError(f"Invalid emotion. Must be one of: {Track.VALID_EMOTIONS}")
+        valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
+        if emotion not in valid_emotions:
+            raise ValueError(f"Invalid emotion. Must be one of: {valid_emotions}")
         
         if not (0 <= min_intensity <= max_intensity <= 10):
             raise ValueError("Intensity must be between 0 and 10")
@@ -99,7 +101,6 @@ class TrackService:
         max_intensity: float,
         limit: int = 50
     ) -> List[Track]:
-        
         if not (0 <= min_intensity <= max_intensity <= 10):
             raise ValueError("Intensity must be between 0 and 10")
         
@@ -109,16 +110,13 @@ class TrackService:
             if min_intensity <= track.emotion_intensity <= max_intensity
         ][:limit]
 
-
     async def get_tracks_by_release_year(self, year: int, limit: int = 100) -> List[Track]:
-        """Get tracks released in specific year"""
         if year < 1900 or year > date.today().year + 1:
             raise ValueError(f"Invalid year. Must be between 1900 and {date.today().year + 1}")
         
         return await self.track_repository.find_by_year(year, limit)
 
     async def get_recent_releases(self, days: int = 30, limit: int = 50) -> List[Track]:
-        """Get tracks released in last N days"""
         if days < 1:
             raise ValueError("Days must be positive")
         
@@ -130,7 +128,6 @@ class TrackService:
         end_date: date,
         limit: int = 100
     ) -> List[Track]:
-        """Get tracks released between two dates"""
         if start_date > end_date:
             raise ValueError("Start date must be before end date")
         
@@ -142,7 +139,6 @@ class TrackService:
         )
 
     async def get_tracks_by_decade(self, decade: int, limit: int = 200) -> List[Track]:
-        """Get tracks released in a specific decade (e.g., 1990 for 90s)"""
         if decade < 1900 or decade % 10 != 0:
             raise ValueError("Decade must be a year ending with 0 (e.g., 1990, 2000)")
         
@@ -152,7 +148,6 @@ class TrackService:
         return await self.get_tracks_by_release_date_range(start_date, end_date, limit)
 
     async def get_tracks_by_era(self, era: str, limit: int = 100) -> List[Track]:
-        """Get tracks by musical era"""
         eras = {
             "classic": (date(1950, 1, 1), date(1979, 12, 31)),
             "eighties": (date(1980, 1, 1), date(1989, 12, 31)),
@@ -169,7 +164,6 @@ class TrackService:
         return await self.get_tracks_by_release_date_range(start_date, end_date, limit)
 
     async def update_track_release_date(self, track_id: int, new_release_date: date) -> Track:
-        """Update track's release date"""
         track = await self.get_track(track_id)
         
         if new_release_date > date.today():
@@ -192,7 +186,6 @@ class TrackService:
         return await self.track_repository.save(updated_track)
 
     async def get_track_statistics(self) -> Dict[str, Any]:
-        """Get extended statistics with release date information"""
         stats = await self.track_repository.get_statistics()
         
         if 'recent_tracks' in stats:
@@ -200,10 +193,10 @@ class TrackService:
             
             today = date.today()
             age_categories = {
-                'new_releases': 0,      # < 1 year
-                'recent': 0,             # 1-3 year
-                'old': 0,                 # 3-10 year
-                'classic': 0              # > 10 year
+                'new_releases': 0,
+                'recent': 0,
+                'old': 0,
+                'classic': 0
             }
             
             for track in recent_tracks:

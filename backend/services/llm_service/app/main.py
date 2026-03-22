@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting the llm pipeline")
+    app.state.pipeline = pipeline
     task = asyncio.create_task(pipeline.start())
     try:
         yield

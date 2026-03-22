@@ -7,17 +7,39 @@ from domain.entities.track import Track
 from domain.repo.repo_track import TrackRepository
 from infrastructure.database.models import TrackModel
 
+
 class PostgresTrackRepository(TrackRepository):
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
     async def save(self, track: Track) -> Track:
         """Save track to database"""
-        if track.id:  # Update
-            stmt = (
-                update(TrackModel)
-                .where(TrackModel.id == track.id)
-                .values(
+        if track.id:
+            existing = await self.find_by_id(track.id)
+            
+            if existing:
+                stmt = (
+                    update(TrackModel)
+                    .where(TrackModel.id == track.id)
+                    .values(
+                        title=track.title,
+                        author=track.author,
+                        genre=track.genre,
+                        text=track.text,
+                        emotion=track.emotion,
+                        emotion_intensity=track.emotion_intensity,
+                        audio_features=track.audio_features,
+                        release_date=track.release_date,
+                        updated_at=datetime.utcnow()
+                    )
+                    .returning(TrackModel)
+                )
+                result = await self.db_session.execute(stmt)
+                await self.db_session.commit()
+                track_model = result.scalar_one()
+            else:
+                track_model = TrackModel(
+                    id=track.id,
                     title=track.title,
                     author=track.author,
                     genre=track.genre,
@@ -27,12 +49,10 @@ class PostgresTrackRepository(TrackRepository):
                     audio_features=track.audio_features,
                     release_date=track.release_date
                 )
-                .returning(TrackModel)
-            )
-            result = await self.db_session.execute(stmt)
-            await self.db_session.commit()
-            track_model = result.scalar_one()
-        else:  # Create
+                self.db_session.add(track_model)
+                await self.db_session.commit()
+                await self.db_session.refresh(track_model)
+        else:
             track_model = TrackModel(
                 title=track.title,
                 author=track.author,
@@ -106,8 +126,7 @@ class PostgresTrackRepository(TrackRepository):
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def search_by_text(self, query: str, limit: int = 20) -> List[Track]:
-        """Search tracks by text content"""
-        # Full-text search in song lyrics
+        """Search tracks by text content using trigram similarity"""
         stmt = (
             select(TrackModel)
             .where(
@@ -117,7 +136,11 @@ class PostgresTrackRepository(TrackRepository):
                 )
             )
             .limit(limit)
-            .order_by(TrackModel.release_date.desc())
+            .order_by(
+                # Use similarity for better search results
+                func.similarity(TrackModel.title, query).desc(),
+                TrackModel.release_date.desc()
+            )
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
@@ -192,10 +215,8 @@ class PostgresTrackRepository(TrackRepository):
 
     async def get_statistics(self) -> Dict[str, Any]:
         """Get track statistics"""
-        # Total number of tracks
         total_count = await self.db_session.scalar(select(func.count(TrackModel.id)))
         
-        # Statistics by genre
         genre_stats = await self.db_session.execute(
             select(
                 TrackModel.genre,
@@ -207,7 +228,6 @@ class PostgresTrackRepository(TrackRepository):
             .group_by(TrackModel.genre)
         )
         
-        # Statistics by emotion
         emotion_stats = await self.db_session.execute(
             select(
                 TrackModel.emotion,
@@ -217,7 +237,6 @@ class PostgresTrackRepository(TrackRepository):
             .group_by(TrackModel.emotion)
         )
         
-        # Statistics by year
         year_stats = await self.db_session.execute(
             select(
                 func.extract('year', TrackModel.release_date).label('year'),
@@ -227,10 +246,8 @@ class PostgresTrackRepository(TrackRepository):
             .order_by(text('year desc'))
         )
         
-        # Recently added tracks
         recent_tracks = await self.find_all(limit=10)
         
-        # Release date range
         date_range = await self.db_session.execute(
             select(
                 func.min(TrackModel.release_date).label('earliest_release'),
@@ -239,21 +256,23 @@ class PostgresTrackRepository(TrackRepository):
         )
         date_stats = date_range.first()
         
+        avg_intensity = await self.db_session.scalar(
+            select(func.avg(TrackModel.emotion_intensity))
+        ) or 0.0
+        
         return {
             "total_tracks": total_count or 0,
             "genres": [dict(row._mapping) for row in genre_stats],
             "emotions": [dict(row._mapping) for row in emotion_stats],
             "years": [dict(row._mapping) for row in year_stats],
-            "recent_tracks": recent_tracks,
-            "average_intensity": await self.db_session.scalar(
-                select(func.avg(TrackModel.emotion_intensity))
-            ) or 0.0,
+            "recent_tracks": [self._to_domain_entity(t) for t in recent_tracks],
+            "average_intensity": float(avg_intensity),
             "earliest_release": date_stats.earliest_release if date_stats else None,
             "latest_release": date_stats.latest_release if date_stats else None
         }
 
     def _to_domain_entity(self, model: TrackModel) -> Track:
-        """ORM -> Entity"""
+        """Convert ORM model to domain entity"""
         return Track(
             id=model.id,
             title=model.title,

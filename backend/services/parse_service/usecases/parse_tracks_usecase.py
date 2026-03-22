@@ -14,6 +14,7 @@ from backend.services.parse_service.infrastructure.repositories.track_repository
     ParseTrackRepository,
 )
 from backend.services.parse_service.infrastructure.yandex_client import YandexMusicClient
+import yandex_music
 
 
 class ParseTracksUseCase:
@@ -133,7 +134,7 @@ class ParseTracksUseCase:
             "track_id": str(track.id),
             "title": track.title,
             "main_artist": cls._extract_main_artist(track),
-            "genre": getattr(track, "genre", None),
+            "genre": getattr(album_obj, "genre", None),
             "album": album_title,
             "year": int(album_year) if album_year else None,
             "duration_ms": track.duration_ms,
@@ -214,7 +215,12 @@ class ParseTracksUseCase:
             local_audio_path,
             yandex_duration_ms=metadata.get("duration_ms"),
         )
-        self.track_repository.save_analysis(track_id, dsp=dsp.__dict__)
+        try:
+            lyrics = self.yandex.get_lyrics(track_id=track_id)
+            clean_lyrics = self._clean_lyrics(lyrics)
+            self.track_repository.save_analysis(track_id, dsp=dsp.__dict__, lyrics=clean_lyrics)
+        except yandex_music.exceptions.NotFoundError:
+            self.track_repository.save_analysis(track_id, dsp=dsp.__dict__, lyrics=None)
         self.track_repository.update_status(
             track_id,
             dsp_processed=True,
@@ -237,7 +243,7 @@ class ParseTracksUseCase:
         Returns cleaned lyrics when found, otherwise `None`.
         """
         try:
-            lyrics = self.genius.get_lyrics(title, main_artist)
+            lyrics = self.yandex.get_lyrics(track_id=track_id)
             clean_lyrics = self._clean_lyrics(lyrics)
 
             self.track_repository.save_analysis(track_id, lyrics=clean_lyrics)
