@@ -1,8 +1,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import date, timedelta, datetime
-from sqlalchemy import select, update, delete, func, and_, or_, between
+from sqlalchemy import select, update, delete, func, and_, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import text
 from domain.entities.track import Track
 from domain.repo.repo_track import TrackRepository
 from infrastructure.database.models import TrackModel
@@ -13,10 +12,8 @@ class PostgresTrackRepository(TrackRepository):
         self.db_session = db_session
 
     async def save(self, track: Track) -> Track:
-        """Save track to database"""
         if track.id:
             existing = await self.find_by_id(track.id)
-            
             if existing:
                 stmt = (
                     update(TrackModel)
@@ -28,6 +25,8 @@ class PostgresTrackRepository(TrackRepository):
                         text=track.text,
                         emotion=track.emotion,
                         emotion_intensity=track.emotion_intensity,
+                        x_coord=track.x_coord,
+                        y_coord=track.y_coord,
                         audio_features=track.audio_features,
                         release_date=track.release_date,
                         updated_at=datetime.utcnow()
@@ -46,6 +45,8 @@ class PostgresTrackRepository(TrackRepository):
                     text=track.text,
                     emotion=track.emotion,
                     emotion_intensity=track.emotion_intensity,
+                    x_coord=track.x_coord,
+                    y_coord=track.y_coord,
                     audio_features=track.audio_features,
                     release_date=track.release_date
                 )
@@ -60,6 +61,8 @@ class PostgresTrackRepository(TrackRepository):
                 text=track.text,
                 emotion=track.emotion,
                 emotion_intensity=track.emotion_intensity,
+                x_coord=track.x_coord,
+                y_coord=track.y_coord,
                 audio_features=track.audio_features,
                 release_date=track.release_date
             )
@@ -70,15 +73,12 @@ class PostgresTrackRepository(TrackRepository):
         return self._to_domain_entity(track_model)
 
     async def find_by_id(self, track_id: int) -> Optional[Track]:
-        """Find track by ID"""
         stmt = select(TrackModel).where(TrackModel.id == track_id)
         result = await self.db_session.execute(stmt)
         track_model = result.scalar_one_or_none()
-        
         return self._to_domain_entity(track_model) if track_model else None
 
     async def find_by_author(self, author: str, limit: int = 50) -> List[Track]:
-        """Find tracks by author"""
         stmt = (
             select(TrackModel)
             .where(TrackModel.author.ilike(f"%{author}%"))
@@ -87,11 +87,9 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def find_by_genre(self, genre: str, limit: int = 50) -> List[Track]:
-        """Find tracks by genre"""
         stmt = (
             select(TrackModel)
             .where(TrackModel.genre.ilike(f"%{genre}%"))
@@ -100,7 +98,6 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def find_by_emotion(
@@ -109,7 +106,6 @@ class PostgresTrackRepository(TrackRepository):
         min_intensity: float = 0.0,
         max_intensity: float = 10.0
     ) -> List[Track]:
-        """Find tracks by emotion and intensity"""
         stmt = (
             select(TrackModel)
             .where(
@@ -122,11 +118,9 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def search_by_text(self, query: str, limit: int = 20) -> List[Track]:
-        """Search tracks by text content using trigram similarity"""
         stmt = (
             select(TrackModel)
             .where(
@@ -137,18 +131,15 @@ class PostgresTrackRepository(TrackRepository):
             )
             .limit(limit)
             .order_by(
-                # Use similarity for better search results
                 func.similarity(TrackModel.title, query).desc(),
                 TrackModel.release_date.desc()
             )
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def find_all(self, limit: int = 100, offset: int = 0) -> List[Track]:
-        """Get all tracks with pagination"""
         stmt = (
             select(TrackModel)
             .limit(limit)
@@ -157,7 +148,6 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def find_by_release_date_range(
@@ -166,7 +156,6 @@ class PostgresTrackRepository(TrackRepository):
         end_date: date,
         limit: int = 100
     ) -> List[Track]:
-        """Find tracks released in date range"""
         stmt = (
             select(TrackModel)
             .where(
@@ -180,16 +169,13 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def find_recent_releases(self, days: int = 30, limit: int = 50) -> List[Track]:
-        """Find tracks released in last N days"""
         cutoff_date = date.today() - timedelta(days=days)
         return await self.find_by_release_date_range(cutoff_date, date.today(), limit)
 
     async def find_by_year(self, year: int, limit: int = 100) -> List[Track]:
-        """Find tracks released in specific year"""
         stmt = (
             select(TrackModel)
             .where(
@@ -203,18 +189,15 @@ class PostgresTrackRepository(TrackRepository):
         )
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
-        
         return [self._to_domain_entity(tm) for tm in track_models]
 
     async def delete(self, track_id: int) -> bool:
-        """Delete track"""
         stmt = delete(TrackModel).where(TrackModel.id == track_id)
         result = await self.db_session.execute(stmt)
         await self.db_session.commit()
         return result.rowcount > 0
 
     async def get_statistics(self) -> Dict[str, Any]:
-        """Get track statistics"""
         total_count = await self.db_session.scalar(select(func.count(TrackModel.id)))
         
         genre_stats = await self.db_session.execute(
@@ -272,7 +255,6 @@ class PostgresTrackRepository(TrackRepository):
         }
 
     def _to_domain_entity(self, model: TrackModel) -> Track:
-        """Convert ORM model to domain entity"""
         return Track(
             id=model.id,
             title=model.title,
@@ -281,6 +263,8 @@ class PostgresTrackRepository(TrackRepository):
             text=model.text,
             emotion=model.emotion,
             emotion_intensity=model.emotion_intensity,
+            x_coord=model.x_coord,
+            y_coord=model.y_coord,
             audio_features=model.audio_features,
             release_date=model.release_date,
             created_at=model.created_at,

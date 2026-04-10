@@ -4,38 +4,38 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field, field_validator
 from usecases.track_service import TrackService
 
-
 class AudioFeatures(BaseModel):
-    tempo: float = Field(..., gt=0, description="Tempo in BPM")
-    energy: float = Field(..., ge=0.0, le=1.0, description="Energy level")
-    danceability: float = Field(..., ge=0.0, le=1.0, description="Danceability")
-    acousticness: float = Field(..., ge=0.0, le=1.0, description="Acousticness")
-    instrumentalness: float = Field(..., ge=0.0, le=1.0, description="Instrumentalness")
-    valence: float = Field(..., ge=0.0, le=1.0, description="Positivity")
-    key: int = Field(..., ge=0, le=11, description="Musical key")
-    mode: int = Field(..., ge=0, le=1, description="Mode (0=minor, 1=major)")
-    loudness: float = Field(..., gt=0.0, description="Loudness in dB")
-    speechiness: float = Field(..., ge=0.0, le=1.0, description="Speechiness")
-    duration: float = Field(..., gt=0.0, description="Duration in seconds")
-
+    tempo: float = Field(..., gt=0)
+    energy: float = Field(..., ge=0.0, le=1.0)
+    danceability: float = Field(..., ge=0.0, le=1.0)
+    acousticness: float = Field(..., ge=0.0, le=1.0)
+    instrumentalness: float = Field(..., ge=0.0, le=1.0)
+    valence: float = Field(..., ge=0.0, le=1.0)
+    key: int = Field(..., ge=0, le=11)
+    mode: int = Field(..., ge=0, le=1)
+    loudness: float = Field(..., gt=0.0)
+    speechiness: float = Field(..., ge=0.0, le=1.0)
+    duration: float = Field(..., gt=0.0)
 
 class CreateTrackRequest(BaseModel):
-    id: int = Field(..., description="Track ID")
+    id: int
     title: str = Field(..., min_length=1, max_length=255)
     author: str = Field(..., min_length=2, max_length=255)
     genre: str = Field(..., min_length=2, max_length=100)
     text: str = Field(..., min_length=1)
     emotion: str = Field(..., min_length=2, max_length=50)
     emotion_intensity: float = Field(..., ge=0, le=10)
+    x_coord: float = Field(..., ge=-10.0, le=10.0)
+    y_coord: float = Field(..., ge=-10.0, le=10.0)
     audio_features: AudioFeatures
-    release_date: date = Field(..., description="Track release date (YYYY-MM-DD)")
+    release_date: date
 
     @field_validator('emotion')
     @classmethod
     def validate_emotion(cls, v: str) -> str:
-        valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
-        if v.lower() not in valid_emotions:
-            raise ValueError(f'Emotion must be one of: {valid_emotions}')
+        valid = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
+        if v.lower() not in valid:
+            raise ValueError(f'Emotion must be one of: {valid}')
         return v.lower()
 
     @field_validator('release_date')
@@ -47,13 +47,12 @@ class CreateTrackRequest(BaseModel):
             raise ValueError('Release date cannot be before 1900')
         return v
 
-
 class UpdateTrackRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     genre: Optional[str] = Field(None, min_length=2, max_length=100)
     emotion: Optional[str] = Field(None, min_length=2, max_length=50)
     emotion_intensity: Optional[float] = Field(None, ge=0, le=10)
-    release_date: Optional[date] = Field(None, description="Track release date")
+    release_date: Optional[date] = None
 
     @field_validator('release_date')
     @classmethod
@@ -65,7 +64,6 @@ class UpdateTrackRequest(BaseModel):
                 raise ValueError('Release date cannot be before 1900')
         return v
 
-
 class TrackResponse(BaseModel):
     id: int
     title: str
@@ -74,6 +72,8 @@ class TrackResponse(BaseModel):
     text: str
     emotion: str
     emotion_intensity: float
+    x_coord: float
+    y_coord: float
     audio_features: Dict[str, Any]
     release_date: date
     created_at: datetime
@@ -118,6 +118,8 @@ class TrackController:
                 text=request.text,
                 emotion=request.emotion,
                 emotion_intensity=request.emotion_intensity,
+                x_coord=request.x_coord,
+                y_coord=request.y_coord,
                 audio_features=request.audio_features.model_dump(),
                 release_date=request.release_date
             )
