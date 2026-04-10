@@ -17,9 +17,12 @@ class TrackService:
         text: str,
         emotion: str,
         emotion_intensity: float,
+        x_coord: float,
+        y_coord: float,
         audio_features: Dict[str, Any],
         release_date: date
-    ) -> Track:
+        ) -> Track:
+
         existing_tracks = await self.track_repository.find_by_author(author)
         for track in existing_tracks:
             if track.title.lower() == title.lower():
@@ -36,6 +39,8 @@ class TrackService:
             text=text.strip(),
             emotion=emotion.lower(),
             emotion_intensity=emotion_intensity,
+            x_coord=x_coord,
+            y_coord=y_coord,
             audio_features=audio_features,
             release_date=release_date
         )

@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS tracks (
     text TEXT NOT NULL,
     emotion VARCHAR(50) NOT NULL,
     emotion_intensity FLOAT NOT NULL,
+    x_coord FLOAT NOT NULL,          -- координата X
+    y_coord FLOAT NOT NULL,          -- координата Y
     audio_features JSONB NOT NULL,
     release_date DATE NOT NULL, 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT valid_emotion CHECK (emotion IN ('joy', 'sadness', 'anger', 'fear', 'surprise', 'love', 'calm', 'energy')),
+    CONSTRAINT valid_emotion CHECK (emotion IN ('happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation')),
     CONSTRAINT valid_intensity CHECK (emotion_intensity >= 0 AND emotion_intensity <= 10)
 );
 
@@ -21,6 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_tracks_author ON tracks(author);
 CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
 CREATE INDEX IF NOT EXISTS idx_tracks_emotion ON tracks(emotion);
 CREATE INDEX IF NOT EXISTS idx_tracks_emotion_intensity ON tracks(emotion_intensity);
+CREATE INDEX IF NOT EXISTS idx_tracks_coords ON tracks(x_coord, y_coord);  -- для поиска по близости
 CREATE INDEX IF NOT EXISTS idx_tracks_created_at ON tracks(created_at DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_author_title ON tracks(author, title);
