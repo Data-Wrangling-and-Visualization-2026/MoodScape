@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime, date
 from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import List, Literal
 
 @dataclass
 class Track:
@@ -9,10 +11,9 @@ class Track:
     author: str
     genre: str
     text: str
-    emotion: str                # доминантная эмоция (для быстрых фильтров)
+    emotion: str                    
     emotion_intensity: float
-    x_coord: float              # координата X
-    y_coord: float              # координата Y
+    emotion_components: List[Dict[str, Any]] 
     audio_features: Dict[str, Any]
     release_date: date
     created_at: Optional[datetime] = None
@@ -32,8 +33,6 @@ class Track:
         if self.emotion not in self.VALID_EMOTIONS:
             return False
         if not (self.MIN_INTENSITY <= self.emotion_intensity <= self.MAX_INTENSITY):
-            return False
-        if not (-10.0 <= self.x_coord <= 10.0) or not (-10.0 <= self.y_coord <= 10.0):
             return False
         if not self.audio_features:
             return False

@@ -17,8 +17,7 @@ class TrackService:
         text: str,
         emotion: str,
         emotion_intensity: float,
-        x_coord: float,
-        y_coord: float,
+        emotion_components: List[Dict[str, Any]],
         audio_features: Dict[str, Any],
         release_date: date
         ) -> Track:
@@ -39,8 +38,7 @@ class TrackService:
             text=text.strip(),
             emotion=emotion.lower(),
             emotion_intensity=emotion_intensity,
-            x_coord=x_coord,
-            y_coord=y_coord,
+            emotion_components=emotion_components,
             audio_features=audio_features,
             release_date=release_date
         )
@@ -95,6 +93,12 @@ class TrackService:
             raise ValueError("Search query must be at least 3 characters")
         
         return await self.track_repository.search_by_text(query, limit)
+    
+    async def get_unique_genres(self) -> List[str]:
+        return await self.track_repository.get_distinct_genres()
+
+    async def get_unique_years(self) -> List[int]:
+        return await self.track_repository.get_distinct_years()
 
     async def delete_track(self, track_id: int) -> bool:
         track = await self.get_track(track_id)

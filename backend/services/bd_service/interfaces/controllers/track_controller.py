@@ -23,10 +23,9 @@ class CreateTrackRequest(BaseModel):
     author: str = Field(..., min_length=2, max_length=255)
     genre: str = Field(..., min_length=2, max_length=100)
     text: str = Field(..., min_length=1)
-    emotion: str = Field(..., min_length=2, max_length=50)
-    emotion_intensity: float = Field(..., ge=0, le=10)
-    x_coord: float = Field(..., ge=-10.0, le=10.0)
-    y_coord: float = Field(..., ge=-10.0, le=10.0)
+    emotion: str = Field(..., min_length=2, max_length=50)        
+    emotion_intensity: float = Field(..., ge=0, le=10)              
+    emotion_components: List[Dict[str, Any]] = Field(..., description="Список {emotion, weight}")
     audio_features: AudioFeatures
     release_date: date
 
@@ -38,13 +37,12 @@ class CreateTrackRequest(BaseModel):
             raise ValueError(f'Emotion must be one of: {valid}')
         return v.lower()
 
-    @field_validator('release_date')
+    @field_validator('emotion_components')
     @classmethod
-    def validate_release_date(cls, v: date) -> date:
-        if v > date.today():
-            raise ValueError('Release date cannot be in the future')
-        if v < date(1900, 1, 1):
-            raise ValueError('Release date cannot be before 1900')
+    def validate_components(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        total = sum(item.get('weight', 0) for item in v)
+        if abs(total - 1.0) > 0.01:
+            raise ValueError('Sum of weights must be 1.0')
         return v
 
 class UpdateTrackRequest(BaseModel):
@@ -72,8 +70,7 @@ class TrackResponse(BaseModel):
     text: str
     emotion: str
     emotion_intensity: float
-    x_coord: float
-    y_coord: float
+    emotion_components: List[Dict[str, Any]]
     audio_features: Dict[str, Any]
     release_date: date
     created_at: datetime
@@ -107,6 +104,8 @@ class TrackController:
         self.router.get("/by-era/{era}", response_model=List[TrackResponse])(self.get_tracks_by_era)
         self.router.get("/by-date-range/", response_model=List[TrackResponse])(self.get_tracks_by_date_range)
         self.router.get("/statistics/", response_model=Dict[str, Any])(self.get_statistics)
+        self.router.get("/genres", response_model=List[str])(self.get_genres)
+        self.router.get("/years", response_model=List[int])(self.get_years)
 
     async def create_track(self, request: CreateTrackRequest) -> TrackResponse:
         try:
@@ -118,8 +117,7 @@ class TrackController:
                 text=request.text,
                 emotion=request.emotion,
                 emotion_intensity=request.emotion_intensity,
-                x_coord=request.x_coord,
-                y_coord=request.y_coord,
+                emotion_components=request.emotion_components,
                 audio_features=request.audio_features.model_dump(),
                 release_date=request.release_date
             )
@@ -133,6 +131,12 @@ class TrackController:
             return self._enrich_track_response(track)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
+        
+    async def get_genres(self) -> List[str]:
+        return await self.track_service.get_unique_genres()
+
+    async def get_years(self) -> List[int]:
+        return await self.track_service.get_unique_years()
 
     async def update_track(
         self, 
