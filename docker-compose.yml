@@ -11,7 +11,7 @@ services:
       - "${BD_SERVICE_DB_PORT:-5432}:5432"
     volumes:
       - bd_service_postgres_data:/var/lib/postgresql/data
-      - ./services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${BD_SERVICE_DB_USER:-bd_user} -d ${BD_SERVICE_DB_NAME:-bd_trackdb}"]
       interval: 10s
@@ -24,7 +24,7 @@ services:
   # Основной сервис bd_service
   bd_service_app:
     build:
-      context: ./services/bd_service  # Путь к контексту сборки
+      context: ./backend/services/bd_service  # Путь к контексту сборки
       dockerfile: Dockerfile           # Имя Dockerfile
     container_name: bd_service_app
     ports:
@@ -48,7 +48,7 @@ services:
         condition: service_healthy
     volumes:
       # Монтируем код для hot-reload в разработке
-      - ./services/bd_service:/app
+      - ./backend/services/bd_service:/app
     networks:
       - bd_service_network
     restart: unless-stopped
@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
   parse_service_app:
     build:
-      context: ..
+      context: .
       dockerfile: backend/services/parse_service/Dockerfile
     container_name: parse_service_app
     ports:
@@ -101,7 +101,7 @@ services:
 
   llm_service:
     container_name: llm_service
-    build: ./services/llm_service
+    build: ./backend/services/llm_service
     ports: 
       - "${LLM_SERVICE_PORT:-8002}:8002"
     restart: unless-stopped
@@ -116,7 +116,7 @@ services:
     - PARSER_TIMEOUT=30
     
     volumes:
-      - ./services/llm_service:/app
+      - ./backend/services/llm_service:/app
     networks:
       - bd_service_network
 
@@ -154,6 +154,26 @@ services:
         curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"nomic-embed-text\"}';
         echo 'Инициализация завершена.';
       "
+  frontend:
+    container_name: moodscape-frontend
+    working_dir: /app
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
+    command: npm run dev -- --port ${FRONTEND_PORT:-3000} --host 0.0.0.0
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8004}
+
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - bd_service_app
+    restart: unless-stopped
+    networks:
+      - bd_service_network
 
 networks:
   bd_service_network:
