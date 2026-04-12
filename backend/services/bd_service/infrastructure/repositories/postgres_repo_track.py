@@ -25,8 +25,7 @@ class PostgresTrackRepository(TrackRepository):
                         text=track.text,
                         emotion=track.emotion,
                         emotion_intensity=track.emotion_intensity,
-                        x_coord=track.x_coord,
-                        y_coord=track.y_coord,
+                        emotion_components=track.emotion_components,
                         audio_features=track.audio_features,
                         release_date=track.release_date,
                         updated_at=datetime.utcnow()
@@ -45,8 +44,7 @@ class PostgresTrackRepository(TrackRepository):
                     text=track.text,
                     emotion=track.emotion,
                     emotion_intensity=track.emotion_intensity,
-                    x_coord=track.x_coord,
-                    y_coord=track.y_coord,
+                    emotion_components=track.emotion_components,
                     audio_features=track.audio_features,
                     release_date=track.release_date
                 )
@@ -61,8 +59,7 @@ class PostgresTrackRepository(TrackRepository):
                 text=track.text,
                 emotion=track.emotion,
                 emotion_intensity=track.emotion_intensity,
-                x_coord=track.x_coord,
-                y_coord=track.y_coord,
+                emotion_components=track.emotion_components,
                 audio_features=track.audio_features,
                 release_date=track.release_date
             )
@@ -149,6 +146,51 @@ class PostgresTrackRepository(TrackRepository):
         result = await self.db_session.execute(stmt)
         track_models = result.scalars().all()
         return [self._to_domain_entity(tm) for tm in track_models]
+    
+    async def filter(
+        self,
+        genre: Optional[str] = None,
+        year: Optional[int] = None,
+        emotion: Optional[str] = None,
+        min_intensity: float = 0.0,
+        max_intensity: float = 10.0,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "release_date",
+        sort_order: str = "desc"
+    ) -> List[Track]:
+        
+        stmt = select(TrackModel)
+        conditions = []
+        
+        if genre:
+            conditions.append(TrackModel.genre.ilike(f"%{genre}%"))
+        if year:
+            start_date = date(year, 1, 1)
+            end_date = date(year, 12, 31)
+            conditions.append(TrackModel.release_date.between(start_date, end_date))
+        if emotion:
+            conditions.append(TrackModel.emotion == emotion)
+        conditions.append(TrackModel.emotion_intensity.between(min_intensity, max_intensity))
+        if search:
+            conditions.append(
+                or_(
+                    TrackModel.title.ilike(f"%{search}%"),
+                    TrackModel.text.ilike(f"%{search}%")
+                )
+            )
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+        sort_column = getattr(TrackModel, sort_by, TrackModel.release_date)
+        if sort_order == "desc":
+            stmt = stmt.order_by(sort_column.desc())
+        else:
+            stmt = stmt.order_by(sort_column.asc())
+        
+        stmt = stmt.offset(offset).limit(limit)
+        result = await self.db_session.execute(stmt)
+        return [self._to_domain_entity(m) for m in result.scalars().all()]
 
     async def find_by_release_date_range(
         self, 
@@ -253,6 +295,16 @@ class PostgresTrackRepository(TrackRepository):
             "earliest_release": date_stats.earliest_release if date_stats else None,
             "latest_release": date_stats.latest_release if date_stats else None
         }
+    
+    async def get_distinct_genres(self) -> List[str]:
+        stmt = select(TrackModel.genre).distinct().order_by(TrackModel.genre)
+        result = await self.db_session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    async def get_distinct_years(self) -> List[int]:
+        stmt = select(func.distinct(func.extract('year', TrackModel.release_date)).label('year')).order_by('year')
+        result = await self.db_session.execute(stmt)
+        return [int(row[0]) for row in result.all()]
 
     def _to_domain_entity(self, model: TrackModel) -> Track:
         return Track(
@@ -263,8 +315,7 @@ class PostgresTrackRepository(TrackRepository):
             text=model.text,
             emotion=model.emotion,
             emotion_intensity=model.emotion_intensity,
-            x_coord=model.x_coord,
-            y_coord=model.y_coord,
+            emotion_components=model.emotion_components,
             audio_features=model.audio_features,
             release_date=model.release_date,
             created_at=model.created_at,

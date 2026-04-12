@@ -7,10 +7,9 @@ CREATE TABLE IF NOT EXISTS tracks (
     author VARCHAR(255) NOT NULL,
     genre VARCHAR(100) NOT NULL,
     text TEXT NOT NULL,
-    emotion VARCHAR(50) NOT NULL,
-    emotion_intensity FLOAT NOT NULL,
-    x_coord FLOAT NOT NULL,          -- координата X
-    y_coord FLOAT NOT NULL,          -- координата Y
+    emotion VARCHAR(50) NOT NULL,                    -- доминантная эмоция
+    emotion_intensity FLOAT NOT NULL,                -- общая интенсивность (0-10)
+    emotion_components JSONB NOT NULL,               -- список компонентов: [{"emotion": "...", "weight": ...}]
     audio_features JSONB NOT NULL,
     release_date DATE NOT NULL, 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -23,13 +22,15 @@ CREATE INDEX IF NOT EXISTS idx_tracks_author ON tracks(author);
 CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
 CREATE INDEX IF NOT EXISTS idx_tracks_emotion ON tracks(emotion);
 CREATE INDEX IF NOT EXISTS idx_tracks_emotion_intensity ON tracks(emotion_intensity);
-CREATE INDEX IF NOT EXISTS idx_tracks_coords ON tracks(x_coord, y_coord);  -- для поиска по близости
 CREATE INDEX IF NOT EXISTS idx_tracks_created_at ON tracks(created_at DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_author_title ON tracks(author, title);
 
 CREATE INDEX IF NOT EXISTS idx_tracks_text_trgm ON tracks USING GIN (text gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_tracks_title_trgm ON tracks USING GIN (title gin_trgm_ops);
+
+-- GIN индекс для JSONB (поиск внутри emotion_components)
+CREATE INDEX IF NOT EXISTS idx_tracks_emotion_components ON tracks USING GIN (emotion_components);
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

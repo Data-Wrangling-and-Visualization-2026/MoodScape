@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import List, Literal, Tuple
+from typing import List, Literal, Tuple, Dict, Any
 from datetime import date, datetime
 
-# ---------- AudioFeatures (без изменений) ----------
 class AudioFeatures(BaseModel):
     tempo: float = Field(gt=0)
     energy: float = Field(ge=0.0, le=1.0)
@@ -16,7 +15,6 @@ class AudioFeatures(BaseModel):
     speechiness: float = Field(ge=0.0, le=1.0)
     duration: float = Field(gt=0.0)
 
-# ---------- Новые модели для смешанных эмоций ----------
 class MixedEmotion(BaseModel):
     emotion: Literal['happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation']
     weight: float = Field(ge=0.0, le=1.0)
@@ -33,8 +31,6 @@ class EmotionVector(BaseModel):
         return self
 
     def get_coordinates(self) -> Tuple[float, float]:
-        """Возвращает (x, y) на плоскости эмоций (базовые координаты + интенсивность)"""
-        # Базовые координаты для каждой эмоции
         base = {
             'happiness': (1.0, 1.0),
             'anger': (1.0, 0.0),
@@ -49,12 +45,10 @@ class EmotionVector(BaseModel):
         return (x * factor, y * factor)
 
     def get_dominant_emotion(self) -> str:
-        """Возвращает эмоцию с наибольшим весом (для отправки в БД)"""
         if len(self.components) == 1:
             return self.components[0].emotion
         return max(self.components, key=lambda c: c.weight).emotion
 
-# ---------- Модели треков ----------
 class TrackGet(BaseModel):
     id: int
     title: str
@@ -70,22 +64,18 @@ class TrackPost(BaseModel):
     author: str
     genre: str
     text: str
-    # Поля, которые ожидает БД
-    emotion: Literal['happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation']
+    emotion: str                           
     emotion_intensity: float = Field(ge=0.0, le=10.0)
-    x_coord: float      # ← координата X
-    y_coord: float      # ← координата Y
+    emotion_components: List[Dict[str, Any]]  # [{"emotion": "anger", "weight": 0.7}, ...]
     audio_features: AudioFeatures
     release_date: date
 
     model_config = ConfigDict(from_attributes=True)
 
-# Ответ LLM (содержит вектор, а не готовые поля)
 class LlmResponse(BaseModel):
     emotion_vector: EmotionVector
 
 class TrackCSV(BaseModel):
-    # ... без изменений ...
     id: int
     track_id: int
     lyrics: str = Field(default="")
