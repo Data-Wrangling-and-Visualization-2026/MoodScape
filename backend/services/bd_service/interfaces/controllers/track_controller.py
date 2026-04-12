@@ -89,11 +89,9 @@ class TrackController:
         self._register_routes()
 
     def _register_routes(self):
-        self.router.post("/", response_model=TrackResponse)(self.create_track)
-        self.router.get("/{track_id}", response_model=TrackResponse)(self.get_track)
-        self.router.put("/{track_id}", response_model=TrackResponse)(self.update_track)
-        self.router.delete("/{track_id}")(self.delete_track)
-        self.router.get("/", response_model=List[TrackResponse])(self.list_tracks)
+        self.router.get("/genres", response_model=List[str])(self.get_genres)
+        self.router.get("/years", response_model=List[int])(self.get_years)
+        self.router.get("/filter/", response_model=List[TrackResponse])(self.filter_tracks)
         self.router.get("/search/", response_model=List[TrackResponse])(self.search_tracks)
         self.router.get("/by-author/{author}", response_model=List[TrackResponse])(self.get_tracks_by_author)
         self.router.get("/by-genre/{genre}", response_model=List[TrackResponse])(self.get_tracks_by_genre)
@@ -104,8 +102,15 @@ class TrackController:
         self.router.get("/by-era/{era}", response_model=List[TrackResponse])(self.get_tracks_by_era)
         self.router.get("/by-date-range/", response_model=List[TrackResponse])(self.get_tracks_by_date_range)
         self.router.get("/statistics/", response_model=Dict[str, Any])(self.get_statistics)
-        self.router.get("/genres", response_model=List[str])(self.get_genres)
-        self.router.get("/years", response_model=List[int])(self.get_years)
+
+        
+        self.router.get("/{track_id}", response_model=TrackResponse)(self.get_track)
+        
+        self.router.post("/", response_model=TrackResponse)(self.create_track)
+        self.router.put("/{track_id}", response_model=TrackResponse)(self.update_track)
+        self.router.delete("/{track_id}")(self.delete_track)
+        self.router.get("/", response_model=List[TrackResponse])(self.list_tracks)
+
 
     async def create_track(self, request: CreateTrackRequest) -> TrackResponse:
         try:
@@ -122,6 +127,32 @@ class TrackController:
                 release_date=request.release_date
             )
             return self._enrich_track_response(track)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+    async def filter_tracks(
+        self,
+        genre: Optional[str] = Query(None, min_length=2, max_length=100),
+        year: Optional[int] = Query(None, ge=1900, le=date.today().year + 1),
+        emotion: Optional[str] = Query(None, min_length=2, max_length=50),
+        search: Optional[str] = Query(None, min_length=3),
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+        sort_by: str = Query("release_date", pattern="^(release_date|created_at|title|author|emotion_intensity)$"),
+        sort_order: str = Query("desc", pattern="^(asc|desc)$")
+    ) -> List[TrackResponse]:
+        try:
+            tracks = await self.track_service.filter_tracks(
+                genre=genre,
+                year=year,
+                emotion=emotion,
+                search=search,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order
+            )
+            return [self._enrich_track_response(track) for track in tracks]
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 

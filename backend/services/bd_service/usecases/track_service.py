@@ -48,6 +48,36 @@ class TrackService:
 
         saved_track = await self.track_repository.save(track)
         return saved_track
+    
+    async def filter_tracks(
+        self,
+        genre: Optional[str] = None,
+        year: Optional[int] = None,
+        emotion: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "release_date",
+        sort_order: str = "desc"
+    ) -> List[Track]:
+        valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
+        if emotion and emotion not in valid_emotions:
+            raise ValueError(f"Invalid emotion. Must be one of: {valid_emotions}")
+        if year and (year < 1900 or year > date.today().year + 1):
+            raise ValueError(f"Invalid year")
+        if search and len(search.strip()) < 3:
+            raise ValueError("Search query must be at least 3 characters")
+
+        return await self.track_repository.filter(
+            genre=genre,
+            year=year,
+            emotion=emotion,
+            search=search,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )    
 
     async def get_track(self, track_id: int) -> Track:
         if track_id <= 0:
