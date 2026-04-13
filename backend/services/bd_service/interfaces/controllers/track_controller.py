@@ -37,14 +37,6 @@ class CreateTrackRequest(BaseModel):
             raise ValueError(f'Emotion must be one of: {valid}')
         return v.lower()
 
-    @field_validator('emotion_components')
-    @classmethod
-    def validate_components(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        total = sum(item.get('weight', 0) for item in v)
-        if abs(total - 1.0) > 0.01:
-            raise ValueError('Sum of weights must be 1.0')
-        return v
-
 class UpdateTrackRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     genre: Optional[str] = Field(None, min_length=2, max_length=100)
@@ -133,7 +125,8 @@ class TrackController:
     async def filter_tracks(
         self,
         genre: Optional[str] = Query(None, min_length=2, max_length=100),
-        year: Optional[int] = Query(None, ge=1900, le=date.today().year + 1),
+        year_from: Optional[int] = Query(None, ge=1900, le=date.today().year + 1, description="Year from"),
+        year_to: Optional[int] = Query(None, ge=1900, le=date.today().year + 1, description="Year to"),
         emotion: Optional[str] = Query(None, min_length=2, max_length=50),
         search: Optional[str] = Query(None, min_length=3),
         limit: int = Query(50, ge=1, le=200),
@@ -144,7 +137,8 @@ class TrackController:
         try:
             tracks = await self.track_service.filter_tracks(
                 genre=genre,
-                year=year,
+                year_from=year_from,
+                year_to=year_to,
                 emotion=emotion,
                 search=search,
                 limit=limit,
