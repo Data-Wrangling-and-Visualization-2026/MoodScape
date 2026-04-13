@@ -52,7 +52,8 @@ class TrackService:
     async def filter_tracks(
         self,
         genre: Optional[str] = None,
-        year: Optional[int] = None,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
         emotion: Optional[str] = None,
         search: Optional[str] = None,
         limit: int = 50,
@@ -63,14 +64,15 @@ class TrackService:
         valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
         if emotion and emotion not in valid_emotions:
             raise ValueError(f"Invalid emotion. Must be one of: {valid_emotions}")
-        if year and (year < 1900 or year > date.today().year + 1):
-            raise ValueError(f"Invalid year")
+        if year_from is not None and year_to is not None and year_from > year_to:
+            raise ValueError("year_from must be <= year_to")
         if search and len(search.strip()) < 3:
             raise ValueError("Search query must be at least 3 characters")
 
         return await self.track_repository.filter(
             genre=genre,
-            year=year,
+            year_from=year_from,
+            year_to=year_to,
             emotion=emotion,
             search=search,
             limit=limit,

@@ -17,18 +17,11 @@ class AudioFeatures(BaseModel):
 
 class MixedEmotion(BaseModel):
     emotion: Literal['happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation']
-    weight: float = Field(ge=0.0, le=1.0)
+    weight: float = Field(ge=0.0, le=10.0)
 
 class EmotionVector(BaseModel):
     components: List[MixedEmotion] = Field(min_length=1)
     intensity: float = Field(ge=0.0, le=10.0)
-
-    @model_validator(mode='after')
-    def weights_sum_to_one(self):
-        total = sum(c.weight for c in self.components)
-        if abs(total - 1.0) > 0.01:
-            raise ValueError(f'Sum of weights must be 1.0, got {total}')
-        return self
 
     def get_coordinates(self) -> Tuple[float, float]:
         base = {

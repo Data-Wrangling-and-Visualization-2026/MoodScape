@@ -55,7 +55,8 @@ class TrackRepository(ABC):
     async def filter(
         self,
         genre: Optional[str] = None,
-        year: Optional[int] = None,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
         emotion: Optional[str] = None,
         search: Optional[str] = None,
         limit: int = 50,

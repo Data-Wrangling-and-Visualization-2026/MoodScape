@@ -150,7 +150,8 @@ class PostgresTrackRepository(TrackRepository):
     async def filter(
         self,
         genre: Optional[str] = None,
-        year: Optional[int] = None,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
         emotion: Optional[str] = None,
         min_intensity: float = 0.0,
         max_intensity: float = 10.0,
@@ -166,9 +167,9 @@ class PostgresTrackRepository(TrackRepository):
         
         if genre:
             conditions.append(TrackModel.genre.ilike(f"%{genre}%"))
-        if year:
-            start_date = date(year, 1, 1)
-            end_date = date(year, 12, 31)
+        if year_from is not None or year_to is not None:
+            start_date = date(year_from, 1, 1) if year_from else date(1900, 1, 1)
+            end_date = date(year_to, 12, 31) if year_to else date.today()
             conditions.append(TrackModel.release_date.between(start_date, end_date))
         if emotion:
             conditions.append(TrackModel.emotion == emotion)
