@@ -34,27 +34,21 @@ class LlmAnalyser():
         return response.choices[0].message.content or ""
 
     def __validate_emotion_vector(self, response: str) -> Optional[EmotionVector]:
-        """Парсит JSON с полями components и intensity"""
-        # Ищем JSON объект
         try:
-            # Пытаемся найти первый { и последний }
             start = response.find('{')
             end = response.rfind('}') + 1
             if start == -1 or end == 0:
                 return None
             json_str = response[start:end]
             data = json.loads(json_str)
-            # Проверяем наличие необходимых полей
             if "components" not in data or "intensity" not in data:
                 return None
-            # Валидация через Pydantic
             return EmotionVector.model_validate(data)
         except (json.JSONDecodeError, ValidationError, KeyError) as e:
             print(f"Failed to parse EmotionVector: {e}")
             return None
 
     def analyse(self, lyrics: str, audio_features: AudioFeatures, max_attempts: int = 5) -> EmotionVector:
-        """Возвращает EmotionVector (смешанные эмоции + интенсивность)"""
         for attempt in range(max_attempts):
             print(f"Getting response from Ollama, attempt {attempt+1}")
             response = self.__chat(lyrics, audio_features, self.temperature)

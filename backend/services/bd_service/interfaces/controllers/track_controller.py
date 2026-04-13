@@ -23,10 +23,9 @@ class CreateTrackRequest(BaseModel):
     author: str = Field(..., min_length=2, max_length=255)
     genre: str = Field(..., min_length=2, max_length=100)
     text: str = Field(..., min_length=1)
-    emotion: str = Field(..., min_length=2, max_length=50)
-    emotion_intensity: float = Field(..., ge=0, le=10)
-    x_coord: float = Field(..., ge=-10.0, le=10.0)
-    y_coord: float = Field(..., ge=-10.0, le=10.0)
+    emotion: str = Field(..., min_length=2, max_length=50)        
+    emotion_intensity: float = Field(..., ge=0, le=10)              
+    emotion_components: List[Dict[str, Any]] = Field(..., description="Список {emotion, weight}")
     audio_features: AudioFeatures
     release_date: date
 
@@ -37,15 +36,6 @@ class CreateTrackRequest(BaseModel):
         if v.lower() not in valid:
             raise ValueError(f'Emotion must be one of: {valid}')
         return v.lower()
-
-    @field_validator('release_date')
-    @classmethod
-    def validate_release_date(cls, v: date) -> date:
-        if v > date.today():
-            raise ValueError('Release date cannot be in the future')
-        if v < date(1900, 1, 1):
-            raise ValueError('Release date cannot be before 1900')
-        return v
 
 class UpdateTrackRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -72,8 +62,7 @@ class TrackResponse(BaseModel):
     text: str
     emotion: str
     emotion_intensity: float
-    x_coord: float
-    y_coord: float
+    emotion_components: List[Dict[str, Any]]
     audio_features: Dict[str, Any]
     release_date: date
     created_at: datetime
@@ -92,11 +81,9 @@ class TrackController:
         self._register_routes()
 
     def _register_routes(self):
-        self.router.post("/", response_model=TrackResponse)(self.create_track)
-        self.router.get("/{track_id}", response_model=TrackResponse)(self.get_track)
-        self.router.put("/{track_id}", response_model=TrackResponse)(self.update_track)
-        self.router.delete("/{track_id}")(self.delete_track)
-        self.router.get("/", response_model=List[TrackResponse])(self.list_tracks)
+        self.router.get("/genres", response_model=List[str])(self.get_genres)
+        self.router.get("/years", response_model=List[int])(self.get_years)
+        self.router.get("/filter/", response_model=List[TrackResponse])(self.filter_tracks)
         self.router.get("/search/", response_model=List[TrackResponse])(self.search_tracks)
         self.router.get("/by-author/{author}", response_model=List[TrackResponse])(self.get_tracks_by_author)
         self.router.get("/by-genre/{genre}", response_model=List[TrackResponse])(self.get_tracks_by_genre)
@@ -108,6 +95,15 @@ class TrackController:
         self.router.get("/by-date-range/", response_model=List[TrackResponse])(self.get_tracks_by_date_range)
         self.router.get("/statistics/", response_model=Dict[str, Any])(self.get_statistics)
 
+        
+        self.router.get("/{track_id}", response_model=TrackResponse)(self.get_track)
+        
+        self.router.post("/", response_model=TrackResponse)(self.create_track)
+        self.router.put("/{track_id}", response_model=TrackResponse)(self.update_track)
+        self.router.delete("/{track_id}")(self.delete_track)
+        self.router.get("/", response_model=List[TrackResponse])(self.list_tracks)
+
+
     async def create_track(self, request: CreateTrackRequest) -> TrackResponse:
         try:
             track = await self.track_service.create_track(
@@ -118,12 +114,39 @@ class TrackController:
                 text=request.text,
                 emotion=request.emotion,
                 emotion_intensity=request.emotion_intensity,
-                x_coord=request.x_coord,
-                y_coord=request.y_coord,
+                emotion_components=request.emotion_components,
                 audio_features=request.audio_features.model_dump(),
                 release_date=request.release_date
             )
             return self._enrich_track_response(track)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+    async def filter_tracks(
+        self,
+        genre: Optional[str] = Query(None, min_length=2, max_length=100),
+        year_from: Optional[int] = Query(None, ge=1900, le=date.today().year + 1, description="Year from"),
+        year_to: Optional[int] = Query(None, ge=1900, le=date.today().year + 1, description="Year to"),
+        emotion: Optional[str] = Query(None, min_length=2, max_length=50),
+        search: Optional[str] = Query(None, min_length=3),
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+        sort_by: str = Query("release_date", pattern="^(release_date|created_at|title|author|emotion_intensity)$"),
+        sort_order: str = Query("desc", pattern="^(asc|desc)$")
+    ) -> List[TrackResponse]:
+        try:
+            tracks = await self.track_service.filter_tracks(
+                genre=genre,
+                year_from=year_from,
+                year_to=year_to,
+                emotion=emotion,
+                search=search,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order
+            )
+            return [self._enrich_track_response(track) for track in tracks]
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -133,6 +156,12 @@ class TrackController:
             return self._enrich_track_response(track)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
+        
+    async def get_genres(self) -> List[str]:
+        return await self.track_service.get_unique_genres()
+
+    async def get_years(self) -> List[int]:
+        return await self.track_service.get_unique_years()
 
     async def update_track(
         self, 

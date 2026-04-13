@@ -1,7 +1,7 @@
 from app.clients.parser_client import ParserClient
 from app.clients.bd_client import BdClient
 from app.core.llm_analyser import LlmAnalyser
-from app.models.schemas import TrackPost, MixedEmotion  # MixedEmotion нужен только для fallback
+from app.models.schemas import TrackPost, MixedEmotion
 import asyncio
 
 class LlmPipeline:
@@ -51,18 +51,19 @@ class LlmPipeline:
             try:
                 valid_track = self.llm_analyser.validate_track(track)
                 if valid_track:
-                    # Получаем EmotionVector от LLM
                     emotion_vector = await asyncio.to_thread(
                         self.llm_analyser.analyse,
                         valid_track.text,
                         valid_track.audio_features
                     )
-                    # Вычисляем координаты и доминантную эмоцию
-                    x, y = emotion_vector.get_coordinates()
                     dominant = emotion_vector.get_dominant_emotion()
                     intensity = emotion_vector.intensity
 
-                    # Создаём TrackPost с нужными полями
+                    components_list = [
+                        {"emotion": comp.emotion, "weight": comp.weight}
+                        for comp in emotion_vector.components
+                    ]
+
                     track_post = TrackPost(
                         id=valid_track.id,
                         title=valid_track.title,
@@ -71,8 +72,7 @@ class LlmPipeline:
                         text=valid_track.text,
                         emotion=dominant,
                         emotion_intensity=intensity,
-                        x_coord=x,
-                        y_coord=y,
+                        emotion_components=components_list,
                         audio_features=valid_track.audio_features,
                         release_date=valid_track.release_date.date() if hasattr(valid_track.release_date, 'date') else valid_track.release_date
                     )

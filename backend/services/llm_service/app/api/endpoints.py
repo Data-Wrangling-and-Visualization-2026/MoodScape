@@ -21,9 +21,6 @@ async def check_health():
 
 @router.post("/analyze")
 async def analyze_track(request: Request, track_data: TrackCSV):
-    """
-    Добавляет трек в очередь на обработку
-    """
     try:
         pipeline = request.app.state.pipeline
         audio_features = track_data.to_audio_features()

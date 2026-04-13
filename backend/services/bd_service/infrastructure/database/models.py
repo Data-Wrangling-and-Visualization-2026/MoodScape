@@ -14,8 +14,7 @@ class TrackModel(Base):
     text = Column(Text, nullable=False)
     emotion = Column(String(50), nullable=False, index=True)
     emotion_intensity = Column(Float, nullable=False)
-    x_coord = Column(Float, nullable=False)
-    y_coord = Column(Float, nullable=False)
+    emotion_components = Column(JSON, nullable=False)  
     audio_features = Column(JSON, nullable=False)
     release_date = Column(Date, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -24,8 +23,8 @@ class TrackModel(Base):
     __table_args__ = (
         Index('idx_tracks_author_title', 'author', 'title', unique=True),
         Index('idx_tracks_emotion_intensity', 'emotion_intensity'),
-        Index('idx_tracks_coords', 'x_coord', 'y_coord'),
         Index('idx_tracks_created_at', 'created_at'),
+        Index('idx_tracks_emotion_components', 'emotion_components', postgresql_using='gin'),
         CheckConstraint(
             "emotion IN ('happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation')",
             name='valid_emotion'

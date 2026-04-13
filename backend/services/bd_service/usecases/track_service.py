@@ -17,8 +17,7 @@ class TrackService:
         text: str,
         emotion: str,
         emotion_intensity: float,
-        x_coord: float,
-        y_coord: float,
+        emotion_components: List[Dict[str, Any]],
         audio_features: Dict[str, Any],
         release_date: date
         ) -> Track:
@@ -39,8 +38,7 @@ class TrackService:
             text=text.strip(),
             emotion=emotion.lower(),
             emotion_intensity=emotion_intensity,
-            x_coord=x_coord,
-            y_coord=y_coord,
+            emotion_components=emotion_components,
             audio_features=audio_features,
             release_date=release_date
         )
@@ -50,6 +48,38 @@ class TrackService:
 
         saved_track = await self.track_repository.save(track)
         return saved_track
+    
+    async def filter_tracks(
+        self,
+        genre: Optional[str] = None,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+        emotion: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "release_date",
+        sort_order: str = "desc"
+    ) -> List[Track]:
+        valid_emotions = {'happiness', 'sadness', 'fear', 'anger', 'disgust', 'anticipation'}
+        if emotion and emotion not in valid_emotions:
+            raise ValueError(f"Invalid emotion. Must be one of: {valid_emotions}")
+        if year_from is not None and year_to is not None and year_from > year_to:
+            raise ValueError("year_from must be <= year_to")
+        if search and len(search.strip()) < 3:
+            raise ValueError("Search query must be at least 3 characters")
+
+        return await self.track_repository.filter(
+            genre=genre,
+            year_from=year_from,
+            year_to=year_to,
+            emotion=emotion,
+            search=search,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )    
 
     async def get_track(self, track_id: int) -> Track:
         if track_id <= 0:
@@ -95,6 +125,12 @@ class TrackService:
             raise ValueError("Search query must be at least 3 characters")
         
         return await self.track_repository.search_by_text(query, limit)
+    
+    async def get_unique_genres(self) -> List[str]:
+        return await self.track_repository.get_distinct_genres()
+
+    async def get_unique_years(self) -> List[int]:
+        return await self.track_repository.get_distinct_years()
 
     async def delete_track(self, track_id: int) -> bool:
         track = await self.get_track(track_id)
