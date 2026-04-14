@@ -56,8 +56,8 @@ class TrackService:
         year_to: Optional[int] = None,
         emotion: Optional[str] = None,
         search: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
         sort_by: str = "release_date",
         sort_order: str = "desc"
     ) -> List[Track]:

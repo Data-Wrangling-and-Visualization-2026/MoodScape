@@ -5,33 +5,43 @@ import os
 import logging
 from infrastructure.database.postgres import PostgresDatabase
 from infrastructure.repositories.postgres_repo_track import PostgresTrackRepository
+from infrastructure.repositories.postgres_repo_event import PostgresEventRepository
 from usecases.track_service import TrackService
+from usecases.event_service import EventService
 from interfaces.controllers.track_controller import TrackController
+from interfaces.controllers.event_controller import EventController
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Глобальные переменные для сервисов
 db = PostgresDatabase()
 track_service = None
+event_service = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global track_service
+    global track_service, event_service
     logger.info("Starting up...")
     try:
         await db.initialize()
         logger.info("Database connected successfully")
         
         async for session in db.get_session():
-            repository = PostgresTrackRepository(session)
-            track_service = TrackService(repository)
+            track_repository = PostgresTrackRepository(session)
+            event_repository = PostgresEventRepository(session)
             
-            controller = TrackController(track_service)
-            app.include_router(controller.router)
+            track_service = TrackService(track_repository)
+            event_service = EventService(event_repository)
+            
+            track_controller = TrackController(track_service)
+            event_controller = EventController(event_service)
+            
+            app.include_router(track_controller.router)
+            app.include_router(event_controller.router)
+            
             logger.info("Track routes registered successfully")
+            logger.info("Event routes registered successfully")
             break
             
     except Exception as e:
@@ -48,7 +58,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Track Service API",
-        description="Microservice for storing and managing music tracks with emotional characteristics",
+        description="Microservice for storing and managing music tracks with emotional characteristics and historical events",
         version="1.0.0",
         lifespan=lifespan, 
         docs_url="/docs",
@@ -70,15 +80,25 @@ def create_app() -> FastAPI:
             "service": "Track Service",
             "version": "1.0.0",
             "status": "operational",
-            "environment": os.getenv("ENVIRONMENT", "development")
+            "environment": os.getenv("ENVIRONMENT", "development"),
+            "endpoints": {
+                "tracks": "/tracks",
+                "events": "/events",
+                "docs": "/docs",
+                "health": "/health"
+            }
         }
 
     @app.get("/health")
     async def health_check():
-        if track_service is None:
+        if track_service is None or event_service is None:
             return {
                 "status": "starting",
-                "database": "initializing"
+                "database": "initializing",
+                "services": {
+                    "track": track_service is not None,
+                    "event": event_service is not None
+                }
             }
         try:
             async for _ in db.get_session():
@@ -86,7 +106,10 @@ def create_app() -> FastAPI:
             return {
                 "status": "healthy",
                 "database": "connected",
-                "service": "ready"
+                "services": {
+                    "track": "ready",
+                    "event": "ready"
+                }
             }
         except Exception as e:
             return {

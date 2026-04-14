@@ -156,8 +156,8 @@ class PostgresTrackRepository(TrackRepository):
         min_intensity: float = 0.0,
         max_intensity: float = 10.0,
         search: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
         sort_by: str = "release_date",
         sort_order: str = "desc"
     ) -> List[Track]:
@@ -189,7 +189,10 @@ class PostgresTrackRepository(TrackRepository):
         else:
             stmt = stmt.order_by(sort_column.asc())
         
-        stmt = stmt.offset(offset).limit(limit)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         result = await self.db_session.execute(stmt)
         return [self._to_domain_entity(m) for m in result.scalars().all()]
 
