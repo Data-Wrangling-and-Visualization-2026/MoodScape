@@ -439,3 +439,4 @@ config/*.local.yaml
 # Local storage
 storage/*
 !storage/.gitkeep
+data.csv

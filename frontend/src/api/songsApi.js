@@ -18,12 +18,10 @@ export async function getFilteredSongs(filters) {
 
     search: filters.lyrics || undefined,
 
-    limit: 50,
-    offset: 0,
     sort_by: "release_date",
-    sort_order: "desc",
+    sort_order: "asc",
   };
-  
+
   const { data } = await api.get("tracks/filter/", { params });
   return data;
 }

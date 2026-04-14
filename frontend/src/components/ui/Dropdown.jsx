@@ -34,10 +34,11 @@ export default function Dropdown({
         </span>
 
         {/* arrow */}
-        <ChevronDown strokeWidth={4} 
-        className={`ml-4 h-5 w-5 transition-transform ${
+        <ChevronDown
+          strokeWidth={4}
+          className={`ml-4 h-5 w-5 transition-transform ${
             open ? "rotate-180" : ""
-        }`}
+          }`}
         />
       </button>
 
@@ -51,12 +52,10 @@ export default function Dropdown({
                 onChange(option);
                 setOpen(false);
               }}
-                className={`cursor-pointer py-3 pr-5 text-xl font-bold hover:bg-green-pastel ${
-                value === option
-                    ? "border-l-4 border-blue-pastel pl-4"
-                    : "pl-5"
-                }`}
-                >
+              className={`cursor-pointer py-3 pr-5 text-xl font-bold hover:bg-green-pastel ${
+                value === option ? "border-l-4 border-blue-pastel pl-4" : "pl-5"
+              }`}
+            >
               {option}
             </div>
           ))}

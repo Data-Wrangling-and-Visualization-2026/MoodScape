@@ -33,52 +33,55 @@ export default function FiltersPanel() {
 
   return (
     <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex w-[230px] flex-col gap-4"
+      onSubmit={handleSubmit(onSubmit)}
+      className="flex w-[230px] flex-col gap-4"
     >
-        <Controller
+      <Controller
         name="genre"
         control={control}
         render={({ field }) => (
-            <Dropdown
+          <Dropdown
             options={["all genres", ...genres]}
             value={field.value}
             onChange={field.onChange}
             placeholder="genre"
-            />
+          />
         )}
-        />
+      />
 
-        <Controller
+      <Controller
         name="mainMood"
         control={control}
         render={({ field }) => (
-            <Dropdown
+          <Dropdown
             options={["all moods", ...MOOD_OPTIONS]}
             value={field.value}
             onChange={field.onChange}
             placeholder="main mood"
-            />
+          />
         )}
-        />
+      />
 
-        <div className="relative">
+      <div className="relative">
         <input
-            type="text"
-            placeholder="search by lyrics"
-            {...register("lyrics")}
-            className="h-30 w-full rounded-xl bg-zinc-100 px-5 pr-5 text-2xl font-black text-black outline-none placeholder:text-zinc-500"
+          type="text"
+          placeholder="search by lyrics"
+          {...register("lyrics")}
+          className="h-30 w-full rounded-xl bg-zinc-100 px-5 pr-5 text-2xl font-black text-black outline-none placeholder:text-zinc-500"
         />
 
-        <Search strokeWidth={4} className="absolute bottom-3 right-4 h-6 w-6 text-black" />
-        </div>
+        <Search
+          strokeWidth={4}
+          className="absolute bottom-3 right-4 h-6 w-6 text-black"
+        />
+      </div>
 
-        <button
+      <button
         type="submit"
         className="h-12 rounded-2xl bg-indigo-500 text-2xl font-black text-white shadow-md transition hover:opacity-90"
-        >
+      >
         Apply filters!
-        </button>
+      </button>
     </form>
-    );
+  );
 }

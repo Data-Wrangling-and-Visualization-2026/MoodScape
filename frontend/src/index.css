@@ -1,19 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Madimi+One&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Afacad:ital,wght@0,400..700;1,400..700&family=Madimi+One&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Madimi+One&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Afacad:ital,wght@0,400..700;1,400..700&family=Madimi+One&display=swap");
 @import "tailwindcss";
 
 @theme {
-    --font-madimi: "Madimi One", sans-serif;
-    --font-afacad: "Afacad", sans-serif;
-    --color-red-pastel: #FF8E8E;
-    --color-orange-pastel: #FFAD73;
-    --color-yellow-pastel: #FCF67A;
-    --color-green-pastel: #90FF94;
-    --color-blue-pastel: #6874FF;
-    --color-purple-pastel: #C588FB;
-    --color-disabled: #767992;
-    --color-dark-blue: #131D3C;
-    --color-graph-bg: #111932;
+  --font-madimi: "Madimi One", sans-serif;
+  --font-afacad: "Afacad", sans-serif;
+  --color-red-pastel: #ff8e8e;
+  --color-orange-pastel: #ffad73;
+  --color-yellow-pastel: #fcf67a;
+  --color-green-pastel: #90ff94;
+  --color-blue-pastel: #6874ff;
+  --color-purple-pastel: #c588fb;
+  --color-disabled: #767992;
+  --color-dark-blue: #131d3c;
+  --color-graph-bg: #111932;
 }
 
 body {

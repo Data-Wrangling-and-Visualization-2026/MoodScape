@@ -7,7 +7,6 @@ export default function HomePage() {
   const filters = useFiltersStore((state) => state.filters);
   const { data, error, isFetching } = useSongs(filters);
 
-  
   return (
     <div className="h-screen overflow-hidden px-10 py-6">
       <main className="flex h-full flex-col">
@@ -16,13 +15,9 @@ export default function HomePage() {
         </div>
 
         <div className="shrink-0 text-white">
-          {error ? (
-            <p>Failed to load songs</p>
-          ) : (
-            <pre>{data?.length ?? 0}</pre>
-          )}
+          {error ? <p>Failed to load songs</p> : <pre>{data?.length ?? 0}</pre>}
 
-          {/* {isFetching && <p>Updating...</p>} */}
+          {isFetching && <p>Updating...</p>}
         </div>
 
         <div className="shrink-0">

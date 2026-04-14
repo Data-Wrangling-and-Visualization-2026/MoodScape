@@ -23,5 +23,4 @@ export const useFiltersStore = create((set) => ({
         yearTo,
       },
     })),
-
 }));
