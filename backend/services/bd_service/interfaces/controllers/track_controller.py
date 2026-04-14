@@ -129,8 +129,8 @@ class TrackController:
         year_to: Optional[int] = Query(None, ge=1900, le=date.today().year + 1, description="Year to"),
         emotion: Optional[str] = Query(None, min_length=2, max_length=50),
         search: Optional[str] = Query(None, min_length=3),
-        limit: int = Query(50, ge=1, le=200),
-        offset: int = Query(0, ge=0),
+        limit: Optional[int] = Query(None, ge=1, le=10000),
+        offset: Optional[int] = Query(None, ge=0),
         sort_by: str = Query("release_date", pattern="^(release_date|created_at|title|author|emotion_intensity)$"),
         sort_order: str = Query("desc", pattern="^(asc|desc)$")
     ) -> List[TrackResponse]:
