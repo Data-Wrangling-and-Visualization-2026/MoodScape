@@ -30,9 +30,9 @@ class PostgresDatabase:
             expire_on_commit=False
         )
 
-        #Create Table
+        """ #Create Table
         async with self.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all) """
 
     async def close(self):
         """close conn"""

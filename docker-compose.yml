@@ -11,7 +11,9 @@ services:
       - "${BD_SERVICE_DB_PORT:-5432}:5432"
     volumes:
       - bd_service_postgres_data:/var/lib/postgresql/data
-      - ./backend/services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./services/bd_service/events_v1.csv:/docker-entrypoint-initdb.d/events_v1.csv
+      - ./services/bd_service/import_events.sql:/docker-entrypoint-initdb.d/02-import-events.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${BD_SERVICE_DB_USER:-bd_user} -d ${BD_SERVICE_DB_NAME:-bd_trackdb}"]
       interval: 10s
