@@ -1,1 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Madimi+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Afacad:ital,wght@0,400..700;1,400..700&family=Madimi+One&display=swap');
 @import "tailwindcss";
+
+@theme {
+    --font-madimi: "Madimi One", sans-serif;
+    --font-afacad: "Afacad", sans-serif;
+    --color-red-pastel: #FF8E8E;
+    --color-orange-pastel: #FFAD73;
+    --color-yellow-pastel: #FCF67A;
+    --color-green-pastel: #90FF94;
+    --color-blue-pastel: #6874FF;
+    --color-purple-pastel: #C588FB;
+    --color-disabled: #767992;
+    --color-dark-blue: #131D3C;
+    --color-graph-bg: #111932;
+}
+
+body {
+  @apply bg-dark-blue;
+}
+
+.dual-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+
+.dual-range-left {
+  z-index: 30;
+}
+
+.dual-range-right {
+  z-index: 20;
+}
+
+.dual-range::-webkit-slider-runnable-track {
+  height: 40px;
+  background: transparent;
+}
+
+.dual-range::-moz-range-track {
+  height: 40px;
+  background: transparent;
+}
+
+.dual-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: auto;
+  height: 28px;
+  width: 28px;
+  margin-top: 6px;
+  border-radius: 9999px;
+  border: 0;
+  background: white;
+  cursor: pointer;
+}
+
+.dual-range::-moz-range-thumb {
+  pointer-events: auto;
+  height: 28px;
+  width: 28px;
+  border-radius: 9999px;
+  border: 0;
+  background: white;
+  cursor: pointer;
+}
