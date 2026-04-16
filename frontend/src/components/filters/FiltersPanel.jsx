@@ -28,13 +28,18 @@ export default function FiltersPanel() {
     });
   };
 
-  if (isLoading) return <p>Loading filters...</p>;
-  if (error) return <p>Failed to load filters</p>;
+  if (isLoading) {
+    return <p className="font-afacad text-white">Loading filters...</p>;
+  }
+
+  if (error) {
+    return <p className="font-afacad text-white">Failed to load filters</p>;
+  }
 
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex w-[230px] flex-col gap-4"
+      className="flex w-full max-w-[200px] flex-col gap-3"
     >
       <Controller
         name="genre"
@@ -67,18 +72,18 @@ export default function FiltersPanel() {
           type="text"
           placeholder="search by lyrics"
           {...register("lyrics")}
-          className="h-30 w-full rounded-xl bg-zinc-100 px-5 pr-5 text-2xl font-black text-black outline-none placeholder:text-zinc-500"
+          className="h-25 w-full rounded-lg bg-zinc-100 px-4 pr-10 text-lg font-black text-black outline-none placeholder:text-zinc-500"
         />
 
         <Search
-          strokeWidth={4}
-          className="absolute bottom-3 right-4 h-6 w-6 text-black"
+          strokeWidth={3}
+          className="absolute bottom-5 right-3 h-5 w-5 text-black"
         />
       </div>
 
       <button
         type="submit"
-        className="h-12 rounded-2xl bg-indigo-500 text-2xl font-black text-white shadow-md transition hover:opacity-90"
+        className="h-11 rounded-lg bg-indigo-500 text-base font-black text-white shadow-md transition hover:opacity-90"
       >
         Apply filters!
       </button>

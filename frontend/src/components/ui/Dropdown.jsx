@@ -27,7 +27,7 @@ export default function Dropdown({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-12 w-full items-center justify-between rounded-2xl bg-zinc-100 px-5 text-2xl font-black"
+        className="flex h-8 w-full items-center justify-between rounded-lg bg-zinc-100 px-5 text-lg font-black"
       >
         <span className={value ? "text-black" : "text-zinc-500"}>
           {value || placeholder}
@@ -44,7 +44,7 @@ export default function Dropdown({
 
       {/* dropdown */}
       {open && (
-        <div className="absolute z-10 mt-2 max-h-65 w-full overflow-y-auto rounded-xl bg-white shadow-md">
+        <div className="absolute z-10 mt-2 max-h-65 w-full overflow-y-auto rounded-lg bg-white shadow-md">
           {options.map((option) => (
             <div
               key={option}
@@ -52,7 +52,7 @@ export default function Dropdown({
                 onChange(option);
                 setOpen(false);
               }}
-              className={`cursor-pointer py-3 pr-5 text-xl font-bold hover:bg-green-pastel ${
+              className={`cursor-pointer py-3 pr-5 text-lg font-bold hover:bg-green-pastel ${
                 value === option ? "border-l-4 border-blue-pastel pl-4" : "pl-5"
               }`}
             >
