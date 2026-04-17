@@ -3,6 +3,7 @@ import ParallelCoordinatesPlot from "./ParallelCoordinatesPlot";
 import MoodWheel from "./MoodWheel";
 import HeatmapGraph from "./HeatmapGraph";
 import LineGraph from "./LineGraph";
+import GraphViewport from "./GraphViewport";
 import { GRAPH_TABS } from "../../features/graphs/graphTabs";
 import { useGraphTabs } from "../../features/graphs/useGraphTabs";
 
@@ -46,10 +47,11 @@ export default function GraphTabsBox() {
               "border-4 border-white",
               "bg-dark-blue",
               "min-h-[350px]",
-              "px-6 py-6",
             ].join(" ")}
           >
-            {renderActiveGraph()}
+            <GraphViewport height={350}>
+              {renderActiveGraph()}
+            </GraphViewport>
           </div>
         </div>
       </div>
