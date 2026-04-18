@@ -1,30 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { MOOD_OPTIONS } from "../../features/filters/moodOptions";
+import { useFiltersStore } from "../../features/filters/filtersStore";
+import { useSongs } from "../../features/songs/useSongs";
 
-/**
- * Wheel geometry:
- * - 6 sectors
- * - each sector spans 60 degrees
- * - each sector is divided into 3 equal radial segments
- *
- * IMPORTANT:
- * Right now this component only renders the spinning wheel itself.
- * No SongDataPoint rendering is included yet.
- */
-
-/**
- * Mapping from mood to the exact theme color token names requested by the user.
- *
- * We use Tailwind utility class names that match the names from your theme:
- * - red-pastel
- * - orange-pastel
- * - yellow-pastel
- * - green-pastel
- * - blue-pastel
- * - purple-pastel
- *
- * For lower segments we keep the same color but reduce opacity.
- */
 const moodFillClasses = {
   anger: {
     strong: "fill-[#FF7676]",
@@ -64,20 +42,6 @@ const moodFillClasses = {
   },
 };
 
-/**
- * Converts polar coordinates to cartesian coordinates.
- *
- * cx, cy  -> circle center
- * radius  -> distance from center
- * angle   -> angle in degrees
- *
- * SVG uses:
- * - x axis to the right
- * - y axis downward
- *
- * We subtract 90 degrees so that 0 degrees starts from the top,
- * which is usually more intuitive for circular charts.
- */
 function polarToCartesian(cx, cy, radius, angleInDegrees) {
   const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
 
@@ -87,17 +51,14 @@ function polarToCartesian(cx, cy, radius, angleInDegrees) {
   };
 }
 
-/**
- * Builds an SVG path for a donut-like sector segment
- * between:
- * - innerRadius
- * - outerRadius
- * - startAngle
- * - endAngle
- *
- * This lets us create the 3 radial layers for each mood sector.
- */
-function describeRingSegment(cx, cy, innerRadius, outerRadius, startAngle, endAngle) {
+function describeRingSegment(
+  cx,
+  cy,
+  innerRadius,
+  outerRadius,
+  startAngle,
+  endAngle,
+) {
   const outerStart = polarToCartesian(cx, cy, outerRadius, startAngle);
   const outerEnd = polarToCartesian(cx, cy, outerRadius, endAngle);
 
@@ -115,10 +76,6 @@ function describeRingSegment(cx, cy, innerRadius, outerRadius, startAngle, endAn
   ].join(" ");
 }
 
-/**
- * Returns the angle from the wheel center to the pointer.
- * We use this to calculate how much the user has dragged around the circle.
- */
 function getPointerAngle(clientX, clientY, element) {
   const rect = element.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
@@ -130,14 +87,6 @@ function getPointerAngle(clientX, clientY, element) {
   return (Math.atan2(dy, dx) * 180) / Math.PI;
 }
 
-
-/**
- * Builds an SVG arc path that text can follow.
- *
- * We use this only for labels.
- * The path sits a little outside the wheel outline,
- * and the text is attached to that path with <textPath>.
- */
 function describeArc(cx, cy, radius, startAngle, endAngle) {
   const start = polarToCartesian(cx, cy, radius, startAngle);
   const end = polarToCartesian(cx, cy, radius, endAngle);
@@ -150,61 +99,86 @@ function describeArc(cx, cy, radius, startAngle, endAngle) {
   ].join(" ");
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * Deterministic pseudo-random number in [0, 1)
+ * based on a string key, so points stay in place
+ * between renders.
+ */
+function seededUnitFromString(key) {
+  let hash = 2166136261;
+
+  for (let i = 0; i < key.length; i += 1) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return ((hash >>> 0) % 1000000) / 1000000;
+}
+
+function getSongKey(song, index) {
+  return [
+    song?.id ?? "",
+    song?.track_id ?? "",
+    song?.title ?? "",
+    song?.artist ?? "",
+    song?.year ?? "",
+    index,
+  ].join("|");
+}
+
+function getDominantComponent(song) {
+  const components = Array.isArray(song?.emotion_components)
+    ? song.emotion_components
+    : [];
+
+  if (!components.length) return null;
+
+  let best = null;
+
+  for (const component of components) {
+    if (
+      !component ||
+      typeof component.weight !== "number" ||
+      !MOOD_OPTIONS.includes(component.emotion)
+    ) {
+      continue;
+    }
+
+    if (!best || component.weight > best.weight) {
+      best = component;
+    }
+  }
+
+  return best;
+}
+
 export default function MoodWheel({
-    width = 750,
-    height = 350,
-  }) {
-  /**
-   * Current wheel rotation in degrees.
-   * This rotation is applied to the whole wheel, so labels and sectors move together.
-   */
+  width = 750,
+  height = 350,
+}) {
+  const filters = useFiltersStore((state) => state.filters);
+  const { data } = useSongs(filters);
+  const songs = Array.isArray(data) ? data : [];
+
   const [rotation, setRotation] = useState(0);
 
-  /**
-   * Stores info while dragging:
-   * - whether the wheel is currently being dragged
-   * - the angle of the pointer when drag started / last updated
-   */
   const dragStateRef = useRef({
     isDragging: false,
     lastPointerAngle: 0,
   });
 
-  /**
-   * Ref to the draggable wheel container.
-   * Needed to compute pointer angle relative to the wheel center.
-   */
   const wheelRef = useRef(null);
 
-  /**
-   * Geometry values.
-   *
-   * The box is wide, but the wheel itself must stay circular,
-   * so we make the SVG square and center it inside the box.
-   */
   const size = height;
   const center = size / 2;
   const outerRadius = size * 0.36;
-
-  /**
-   * 3 equal radial bands:
-   * - inner
-   * - middle
-   * - outer
-   */
   const innerRadius = size * 0.06;
   const bandWidth = (outerRadius - innerRadius) / 4;
 
-  /**
-   * Sector data for all moods.
-   *
-   * We keep the order exactly from MOOD_OPTIONS.
-   * This order controls the wheel layout.
-   *
-   * Angles:
-   * - each sector spans 60 degrees
-   * - we start from -30 so one sector sits centered at the top
-   */
   const sectors = useMemo(() => {
     return MOOD_OPTIONS.map((mood, index) => {
       const sectorStart = -30 + index * 60;
@@ -219,9 +193,70 @@ export default function MoodWheel({
     });
   }, []);
 
-  /**
-   * Starts dragging.
-   */
+  const sectorByMood = useMemo(() => {
+    return Object.fromEntries(sectors.map((sector) => [sector.mood, sector]));
+  }, [sectors]);
+
+  const plottedPoints = useMemo(() => {
+    const pointSize = clamp(size * 0.014, 4, 8);
+    const pointPadding = pointSize * 1.5;
+    const angularPadding = 6;
+
+    return songs
+      .map((song, index) => {
+        const dominant = getDominantComponent(song);
+        if (!dominant) return null;
+
+        const sector = sectorByMood[dominant.emotion];
+        if (!sector) return null;
+
+        const key = getSongKey(song, index);
+
+        const angleSeed = seededUnitFromString(`${key}-angle`);
+        const jitterSeed = seededUnitFromString(`${key}-radius-jitter`);
+
+        const clampedWeight = clamp(dominant.weight, 0, 10);
+
+        const usableInnerRadius = innerRadius + pointPadding;
+        const usableOuterRadius = outerRadius - pointPadding;
+
+        const baseRadius =
+          usableInnerRadius +
+          (clampedWeight / 10) * (usableOuterRadius - usableInnerRadius);
+
+        const maxRadiusJitter = Math.min(bandWidth * 0.2, pointSize * 1.2);
+        const radius =
+          baseRadius + (jitterSeed * 2 - 1) * maxRadiusJitter;
+
+        const angle =
+          sector.startAngle +
+          angularPadding +
+          angleSeed *
+            Math.max(1, sector.endAngle - sector.startAngle - angularPadding * 2);
+
+        const { x, y } = polarToCartesian(center, center, radius, angle);
+
+        return {
+          key,
+          song,
+          mood: dominant.emotion,
+          weight: dominant.weight,
+          x,
+          y,
+          size: pointSize,
+        };
+      })
+      .filter(Boolean);
+  }, [
+    songs,
+    sectorByMood,
+    size,
+    innerRadius,
+    outerRadius,
+    bandWidth,
+    center,
+  ]);
+
   const handlePointerDown = (event) => {
     if (!wheelRef.current) return;
 
@@ -235,12 +270,6 @@ export default function MoodWheel({
     );
   };
 
-  /**
-   * Rotates the wheel while dragging.
-   *
-   * We compute the new pointer angle, compare it to the previous one,
-   * and add the difference to the current wheel rotation.
-   */
   const handlePointerMove = (event) => {
     if (!dragStateRef.current.isDragging || !wheelRef.current) return;
 
@@ -256,19 +285,16 @@ export default function MoodWheel({
     dragStateRef.current.lastPointerAngle = nextPointerAngle;
   };
 
-  /**
-   * Ends dragging.
-   */
   const stopDragging = () => {
     dragStateRef.current.isDragging = false;
   };
 
   return (
-    <div 
+    <div
       style={{
-            '--box-width': `${width}px`,
-            '--box-height': `${height}px`,
-          }}
+        "--box-width": `${width}px`,
+        "--box-height": `${height}px`,
+      }}
       className="flex h-[var(--box-height)] w-[var(--box-width)] items-center justify-center"
     >
       <div
@@ -283,11 +309,6 @@ export default function MoodWheel({
           cursor: dragStateRef.current.isDragging ? "grabbing" : "grab",
         }}
       >
-        {/* 
-          The whole SVG rotates as one block.
-          This guarantees that no sector label or future point
-          can become detached from the wheel while spinning.
-        */}
         <svg
           viewBox={`0 0 ${size} ${size}`}
           className="h-full w-full"
@@ -296,14 +317,6 @@ export default function MoodWheel({
             transformOrigin: "50% 50%",
           }}
         >
-          {/* =========================================================
-             6 sectors × 3 radial segments
-             ---------------------------------------------------------
-             Each sector uses:
-             - outer segment -> strongest color
-             - middle segment -> lower opacity
-             - inner segment -> lower opacity
-             ========================================================= */}
           {sectors.map((sector) => {
             const r1 = innerRadius;
             const r2 = innerRadius + bandWidth;
@@ -313,7 +326,6 @@ export default function MoodWheel({
 
             return (
               <g key={sector.mood}>
-                {/* Inner segment */}
                 <path
                   d={describeRingSegment(
                     center,
@@ -326,7 +338,6 @@ export default function MoodWheel({
                   className={sector.fills.soft}
                 />
 
-                {/* Middle segment */}
                 <path
                   d={describeRingSegment(
                     center,
@@ -339,7 +350,6 @@ export default function MoodWheel({
                   className={sector.fills.mid}
                 />
 
-                {/* Outer segment */}
                 <path
                   d={describeRingSegment(
                     center,
@@ -367,10 +377,29 @@ export default function MoodWheel({
             );
           })}
 
-          {/* White center circle */}
+          {/* data points */}
+          <g>
+            {plottedPoints.map((point) => (
+              <g key={point.key}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={point.size}
+                  fill="white"
+                  stroke="rgba(0,0,0,0.35)"
+                  strokeWidth="1.25"
+                  className="cursor-pointer"
+                >
+                  <title>
+                    {`${point.song?.title ?? "Song"} • ${point.song?.year ?? "Unknown year"} • ${point.mood}: ${point.weight}`}
+                  </title>
+                </circle>
+              </g>
+            ))}
+          </g>
+
           <circle cx={center} cy={center} r={innerRadius} fill="white" />
 
-          {/* White outer outline, weight 4 */}
           <circle
             cx={center}
             cy={center}
@@ -380,30 +409,11 @@ export default function MoodWheel({
             strokeWidth="8"
           />
 
-          {/* =========================================================
-            Mood labels curved around the wheel
-            ---------------------------------------------------------
-            Each label follows its own invisible arc path.
-            This makes the text go around the circle instead of
-            sitting as a straight word near the wheel.
-            ========================================================= */}
           <defs>
             {sectors.map((sector) => {
-              /**
-              * Label arc radius:
-              * slightly outside the white outline,
-              * but still close to the wheel.
-              */
               const labelRadius = outerRadius + 10;
-
-              /**
-              * We slightly shrink the arc from both sides
-              * so the word stays visually centered inside
-              * the 60-degree sector and does not touch borders.
-              */
               const arcStart = sector.startAngle;
               const arcEnd = sector.endAngle;
-              console.log(sector.mood, center, center, labelRadius, arcStart, arcEnd)
 
               return (
                 <path

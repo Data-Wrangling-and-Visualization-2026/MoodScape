@@ -21,7 +21,11 @@ const OVERLAY_GRAPH_HEIGHT = 500;
 function GraphLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center text-white">
-      <p className="font-afacad text-lg">Loading graph...</p>
+      <img
+              src="/meymuni.gif"
+              alt="smol monke"
+              className="w-20 h-auto"
+            />
     </div>
   );
 }

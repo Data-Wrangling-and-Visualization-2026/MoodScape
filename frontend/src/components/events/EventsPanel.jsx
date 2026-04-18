@@ -24,7 +24,7 @@ export default function EventsPanel() {
     setCurrentYearIndex(0);
   }, [years]);
 
-  // 🔥 auto scroll to top when year changes
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;

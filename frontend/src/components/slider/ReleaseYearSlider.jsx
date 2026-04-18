@@ -30,13 +30,19 @@ export default function ReleaseYearSlider() {
   const isCustomDragging = dragStartX !== null;
 
   useEffect(() => {
-    setLeftYear((prev) => Math.max(minYear, Math.min(prev, maxYear)));
-    setRightYear((prev) => Math.min(maxYear, Math.max(prev, minYear)));
-  }, [minYear, maxYear]);
+  if (!years.length) return;
 
-  useEffect(() => {
-    setYearRange(leftYear, rightYear);
-  }, [leftYear, rightYear, setYearRange]);
+  const nextLeft = filters.yearFrom ?? minYear;
+  const nextRight = filters.yearTo ?? maxYear;
+
+  setLeftYear(Math.max(minYear, Math.min(nextLeft, maxYear)));
+  setRightYear(Math.min(maxYear, Math.max(nextRight, minYear)));
+  setYearRange(
+    Math.max(minYear, Math.min(nextLeft, maxYear)),
+    Math.min(maxYear, Math.max(nextRight, minYear))
+  );
+}, [years, minYear, maxYear, filters.yearFrom, filters.yearTo, setYearRange]);
+
 
   const range = maxYear - minYear || 1;
   const leftPercent = ((leftYear - minYear) / range) * 100;
@@ -85,6 +91,7 @@ export default function ReleaseYearSlider() {
   function handlePointerUp() {
     setDragging(null);
     setDragStartX(null);
+    setYearRange(leftYear, rightYear);
   }
 
   if (isLoading) return <p>Loading years...</p>;
@@ -129,6 +136,9 @@ export default function ReleaseYearSlider() {
                   if (isCustomDragging) return;
                   setLeftYear(Math.min(Number(e.target.value), rightYear));
                 }}
+                onMouseUp={() => setYearRange(leftYear, rightYear)}
+                onTouchEnd={() => setYearRange(leftYear, rightYear)}
+                onKeyUp={() => setYearRange(leftYear, rightYear)}
                 className={`dual-range ${dragging === "left" ? "z-30" : "z-20"}`}
               />
 
@@ -142,6 +152,9 @@ export default function ReleaseYearSlider() {
                   if (isCustomDragging) return;
                   setRightYear(Math.max(Number(e.target.value), leftYear));
                 }}
+                onMouseUp={() => setYearRange(leftYear, rightYear)}
+                onTouchEnd={() => setYearRange(leftYear, rightYear)}
+                onKeyUp={() => setYearRange(leftYear, rightYear)}
                 className={`dual-range ${dragging === "right" ? "z-30" : "z-10"}`}
               />
             </div>

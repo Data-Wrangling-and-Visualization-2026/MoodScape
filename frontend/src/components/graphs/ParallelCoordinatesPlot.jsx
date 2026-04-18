@@ -5,6 +5,8 @@ import SongDataPoint from "./SongDataPoint";
 import { MOOD_OPTIONS } from "../../features/filters/moodOptions";
 import { moodTextClass } from "../../features/graphs/moodTextColours";
 
+const CONNECTION_ROWS_ALWAYS_VISIBLE = 5;
+
 const MAX_POINTS_PER_ROW = 50;
 const MIN_ROW_GAP = 14;
 
@@ -219,6 +221,8 @@ export default function ParallelCoordinatesPlot({
           songIndex,
           className,
           isSongActive,
+          isAlwaysVisibleRow:
+            (pointPosition.rowIndex ?? 0) < CONNECTION_ROWS_ALWAYS_VISIBLE,
           d: `
             M ${pointPosition.x} ${pointPosition.y}
             L ${pointPosition.x} ${bundleY}
@@ -267,12 +271,15 @@ export default function ParallelCoordinatesPlot({
     );
   }
 
-  const inactivePaths = layout.pathItems.filter((path) => !path.isSongActive);
+  const inactivePaths = layout.pathItems.filter(
+  (path) => !path.isSongActive && path.isAlwaysVisibleRow,
+);
   const activePaths = layout.pathItems.filter((path) => path.isSongActive);
 
   return (
     <div className="flex h-full w-full items-center justify-center text-white">
       <div
+        data-graph-scroll-container="true"
         className="custom-scrollbar overflow-y-auto overflow-x-hidden"
         style={{ width: `${width}px`, height: `${height}px` }}
       >
@@ -306,7 +313,7 @@ export default function ParallelCoordinatesPlot({
                 d={path.d}
                 fill="none"
                 stroke="white"
-                strokeWidth="0.2"
+                strokeWidth="0.5"
                 opacity="0.1"
                 strokeLinecap="round"
               />
@@ -316,7 +323,7 @@ export default function ParallelCoordinatesPlot({
           {layout.lineLabels.map(({ mood, y, className }) => (
             <div
               key={mood}
-              className={`pointer-events-none absolute z-10 font-madimi text-[14px] leading-none ${className}`}
+              className={`pointer-events-none absolute z-20 font-madimi text-[14px] leading-none ${className}`}
               style={{
                 left: `${layout.labelX}px`,
                 top: `${y}px`,
@@ -330,7 +337,7 @@ export default function ParallelCoordinatesPlot({
           {layout.noteItems.map((note) => (
             <div
               key={note.key}
-              className={`pointer-events-none absolute z-20 font-madimi leading-none ${note.className}`}
+              className={`pointer-events-none absolute z-25 font-madimi leading-none ${note.className}`}
               style={{
                 left: `${note.x}px`,
                 top: `${note.y}px`,
@@ -357,13 +364,17 @@ export default function ParallelCoordinatesPlot({
                   left: `${pointPosition.x}px`,
                   top: `${pointPosition.y}px`,
                   transform: "translate(-50%, -50%)",
-                  zIndex: isActive ? 2000 : songIndex + 40,
+                  zIndex: isActive ? 999999 : songIndex,
                 }}
               >
                 <MemoSongDataPoint
                   song={song}
                   size={layout.pointSize}
                   isActive={isActive}
+                  pointX={pointPosition.x}
+                  pointY={pointPosition.y}
+                  boxWidth={width}
+                  boxHeight={height}
                   onMouseEnter={() => setHoveredSongIndex(songIndex)}
                   onMouseLeave={() =>
                     setHoveredSongIndex((current) =>
@@ -384,7 +395,7 @@ export default function ParallelCoordinatesPlot({
             width={width}
             height={layout.contentHeight}
             viewBox={`0 0 ${width} ${layout.contentHeight}`}
-            className="pointer-events-none absolute inset-0 z-[1500]"
+            className="pointer-events-none absolute inset-0 z-[15]"
           >
             <defs>
               <filter id="activeGlow" x="-50%" y="-50%" width="200%" height="200%">

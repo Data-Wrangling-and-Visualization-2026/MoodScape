@@ -18,10 +18,10 @@ class PostgresDatabase:
         
         self.engine = create_async_engine(
             database_url,
-            echo=True,
-            pool_size=5,
-            max_overflow=10,
-            pool_pre_ping=True
+            pool_size=20,          
+            max_overflow=40,       
+            pool_pre_ping=True,
+            pool_recycle=3600      
         )
         
         self.async_session_maker = sessionmaker(
