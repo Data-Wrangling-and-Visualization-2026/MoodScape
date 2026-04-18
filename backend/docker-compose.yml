@@ -56,6 +56,31 @@ services:
     restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+
+  bd_go:
+    build: 
+      context: ./services/bd_service_go # Путь к контексту сборки
+      dockerfile: Dockerfile           # Имя Dockerfile
+    container_name: go_track_service
+    ports:
+      - "${SERVER_PORT:-8004}:8004"
+    environment:
+      DB_HOST: bd_service_postgres
+      DB_PORT: 5432
+      DB_USER: ${BD_SERVICE_DB_USER}
+      DB_PASSWORD: ${BD_SERVICE_DB_PASSWORD}
+      DB_NAME: ${BD_SERVICE_DB_NAME}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      SERVER_PORT: 8004
+      SERVER_READ_TIMEOUT: 5
+      SERVER_WRITE_TIMEOUT: 10
+    depends_on:
+      bd_service_postgres:
+        condition: service_healthy
+    networks:
+      - bd_service_network
+    restart: unless-stopped
+
   # Опционально: pgAdmin для управления БД
   bd_service_pgadmin:
     image: dpage/pgadmin4
