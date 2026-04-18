@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # База данных для bd_service
   bd_service_postgres:
@@ -13,7 +11,9 @@ services:
       - "${BD_SERVICE_DB_PORT:-5432}:5432"
     volumes:
       - bd_service_postgres_data:/var/lib/postgresql/data
-      - ./services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./services/bd_service/events_v1.csv:/docker-entrypoint-initdb.d/events_v1.csv
+      - ./services/bd_service/import_events.sql:/docker-entrypoint-initdb.d/02-import-events.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${BD_SERVICE_DB_USER:-bd_user} -d ${BD_SERVICE_DB_NAME:-bd_trackdb}"]
       interval: 10s
@@ -56,6 +56,31 @@ services:
     restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+
+  bd_go:
+    build: 
+      context: ./services/bd_service_go # Путь к контексту сборки
+      dockerfile: Dockerfile           # Имя Dockerfile
+    container_name: go_track_service
+    ports:
+      - "${SERVER_PORT:-8004}:8004"
+    environment:
+      DB_HOST: bd_service_postgres
+      DB_PORT: 5432
+      DB_USER: ${BD_SERVICE_DB_USER}
+      DB_PASSWORD: ${BD_SERVICE_DB_PASSWORD}
+      DB_NAME: ${BD_SERVICE_DB_NAME}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      SERVER_PORT: 8004
+      SERVER_READ_TIMEOUT: 5
+      SERVER_WRITE_TIMEOUT: 10
+    depends_on:
+      bd_service_postgres:
+        condition: service_healthy
+    networks:
+      - bd_service_network
+    restart: unless-stopped
+
   # Опционально: pgAdmin для управления БД
   bd_service_pgadmin:
     image: dpage/pgadmin4
@@ -63,6 +88,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@bdservice.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_ENABLE_PSQL: 'True'
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     volumes:
@@ -80,10 +106,15 @@ services:
     ports:
       - "${PARSE_SERVICE_PORT:-8001}:8001"
     env_file:
-      - ../.env
+      - .env
     environment:
       PARSE_DB_URL: postgresql+psycopg2://${BD_SERVICE_DB_USER:-bd_user}:${BD_SERVICE_DB_PASSWORD:-bd_password123}@bd_service_postgres:5432/${BD_SERVICE_DB_NAME:-bd_trackdb}
       LOCAL_AUDIO_STORAGE_PATH: /app/storage
+      PARSE_SCHEDULER_ENABLED: true
+      PARSE_INTERVAL_SECONDS: 90
+      LYRICS_INTERVAL_SECONDS: 60
+      LLM_SERVICE_URL: http://llm_service:8002
+      LLM_PUSH_ENABLED: true
     depends_on:
       bd_service_postgres:
         condition: service_healthy
@@ -102,8 +133,54 @@ services:
       - "${LLM_SERVICE_PORT:-8002}:8002"
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    environment:
+    # Ollama
+    - OLLAMA_URL=http://ollama:11434
+    - OLLAMA_MODEL=llama3.2:3b
+    - TEMPERATURE=0.3
+    - PARSER_URL=http://parse_service_app:8001
+    - BD_URL=http://bd_service_app:8000
+    - PARSER_TIMEOUT=30
+    
     volumes:
       - ./services/llm_service:/app
+    networks:
+      - bd_service_network
+
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"  # Прокидываем порт API наружу
+    volumes:
+      - ollama_data:/root/.ollama  # Сохраняем модели между перезапусками
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h  # Держим модель в памяти дольше
+    networks:
+      - bd_service_network
+
+  # Сервис для инициализации (загрузки моделей)
+  ollama-pull:
+    image: curlimages/curl:latest  # Легковесный образ с curl
+    container_name: ollama-puller
+    restart: "no"  # Запускается один раз и завершается
+    depends_on:
+      - ollama
+    networks:
+      - bd_service_network
+    # Команда ждет запуска Ollama и тянет список моделей
+    command: >
+      sh -c "
+        echo 'Ожидание запуска Ollama...';
+        sleep 10;
+        echo 'Загрузка модели llama3.1...';
+        curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"llama3.2:3b\"}';
+        echo 'Загрузка модели nomic-embed-text...';
+        curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"nomic-embed-text\"}';
+        echo 'Инициализация завершена.';
+      "
 
 networks:
   bd_service_network:
@@ -114,3 +191,5 @@ volumes:
     name: bd_service_postgres_data
   bd_service_pgadmin_data:
     name: bd_service_pgadmin_data
+  ollama_data:
+    name: ollama_data
