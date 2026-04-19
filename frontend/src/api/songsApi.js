@@ -1,4 +1,4 @@
-import { api } from "./axios";
+import { api, apiGo } from "./axios";
 
 // sends filter data to backend
 export async function getFilteredSongs(filters) {
@@ -22,7 +22,7 @@ export async function getFilteredSongs(filters) {
     sort_order: "asc",
   };
 
-  const { data } = await api.get("tracks/filter/", { params });
+  const { data } = await apiGo.get("tracks/filter/", { params });
   return data;
 }
 
