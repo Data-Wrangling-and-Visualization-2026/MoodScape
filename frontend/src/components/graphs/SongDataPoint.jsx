@@ -26,14 +26,13 @@ export default function SongDataPoint({
   const popupRef = useRef(null);
 
   const [isHovered, setIsHovered] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
 
   const [popupStyle, setPopupStyle] = useState({
     top: 0,
     left: 0,
   });
 
-  const isShown = isActive || isPinned || isHovered;
+  const isShown = isActive || isHovered;
   const currentSize = isShown ? size * 1.25 : size;
 
   useLayoutEffect(() => {
@@ -48,8 +47,9 @@ export default function SongDataPoint({
       const buttonRect = buttonEl.getBoundingClientRect();
       const popupRect = popupEl.getBoundingClientRect();
 
-      const scrollContainer =
-        buttonEl.closest("[data-graph-scroll-container='true']");
+      const scrollContainer = buttonEl.closest(
+        "[data-graph-scroll-container='true']",
+      );
 
       const containerRect = scrollContainer
         ? scrollContainer.getBoundingClientRect()
@@ -133,8 +133,6 @@ export default function SongDataPoint({
 
   const handleClick = (event) => {
     event.stopPropagation();
-
-    setIsPinned((prev) => !prev);
     onClick?.(event);
   };
 

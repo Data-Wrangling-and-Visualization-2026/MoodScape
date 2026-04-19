@@ -8,10 +8,6 @@ const MoodWheel = lazy(() => import("./MoodWheel"));
 const HeatmapGraph = lazy(() => import("./HeatmapGraph"));
 const LineGraph = lazy(() => import("./LineGraph"));
 
-const MIN_ZOOM = 0.6;
-const MAX_ZOOM = 3;
-const ZOOM_STEP = 0.2;
-
 const DEFAULT_BOX_WIDTH = 700;
 const DEFAULT_BOX_HEIGHT = 350;
 
@@ -21,11 +17,7 @@ const OVERLAY_GRAPH_HEIGHT = 500;
 function GraphLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center text-white">
-      <img
-              src="/meymuni.gif"
-              alt="smol monke"
-              className="w-20 h-auto"
-            />
+      <img src="/meymuni.gif" alt="smol monke" className="w-20 h-auto" />
     </div>
   );
 }
@@ -34,7 +26,6 @@ export default function GraphTabsBox() {
   const { activeTab, setActiveTab } = useGraphTabs();
 
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
-  const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
@@ -80,39 +71,12 @@ export default function GraphTabsBox() {
     }
   };
 
-  const resetOverlayView = () => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-    setIsDragging(false);
-  };
-
   const openOverlay = () => {
-    resetOverlayView();
     setIsOverlayOpen(true);
   };
 
   const closeOverlay = () => {
     setIsOverlayOpen(false);
-    resetOverlayView();
-  };
-
-  const clampZoom = (value) => {
-    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
-  };
-
-  const zoomIn = () => {
-    setZoom((prev) => clampZoom(prev + ZOOM_STEP));
-  };
-
-  const zoomOut = () => {
-    setZoom((prev) => clampZoom(prev - ZOOM_STEP));
-  };
-
-  const handleWheelZoom = (event) => {
-    event.preventDefault();
-
-    const delta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-    setZoom((prev) => clampZoom(prev + delta));
   };
 
   const handlePointerDown = (event) => {
@@ -231,34 +195,6 @@ export default function GraphTabsBox() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={zoomOut}
-                  className="rounded-md border border-white/70 px-3 py-1 text-white transition hover:bg-white/10"
-                >
-                  −
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetOverlayView}
-                  className="rounded-md border border-white/70 px-3 py-1 text-white transition hover:bg-white/10"
-                >
-                  Reset
-                </button>
-
-                <button
-                  type="button"
-                  onClick={zoomIn}
-                  className="rounded-md border border-white/70 px-3 py-1 text-white transition hover:bg-white/10"
-                >
-                  +
-                </button>
-
-                <span className="min-w-[64px] text-center font-afacad text-white">
-                  {Math.round(zoom * 100)}%
-                </span>
-
-                <button
-                  type="button"
                   onClick={closeOverlay}
                   className="rounded-md border border-white/70 px-3 py-1 text-white transition hover:bg-white/10"
                 >
@@ -269,7 +205,6 @@ export default function GraphTabsBox() {
 
             <div
               className="relative flex-1 overflow-hidden"
-              onWheel={handleWheelZoom}
               onPointerMove={handlePointerMove}
               onPointerLeave={handlePointerUp}
             >
@@ -278,14 +213,7 @@ export default function GraphTabsBox() {
                 onPointerDown={handlePointerDown}
                 style={{ cursor: isDragging ? "grabbing" : "grab" }}
               >
-                <div
-                  style={{
-                    transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                    transformOrigin: "center center",
-                    transition: isDragging ? "none" : "transform 0.15s ease",
-                    willChange: "transform",
-                  }}
-                >
+                <div>
                   <Suspense fallback={<GraphLoadingFallback />}>
                     {renderActiveGraph(graphSize.width, graphSize.height, {
                       compact: false,

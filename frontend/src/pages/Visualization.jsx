@@ -6,7 +6,6 @@ import { useEvents } from "../features/events/useEvents";
 import { useFiltersStore } from "../features/filters/filtersStore";
 import GraphTabsBox from "../components/graphs/GraphTabsBox";
 
-
 export default function Visualization() {
   const filters = useFiltersStore((state) => state.filters);
   const { data, error, isFetching } = useSongs(filters);
@@ -73,13 +72,8 @@ export default function Visualization() {
           <aside className="flex min-h-0 flex-col items-center mt-[50px] gap-3 pt-20">
             <FiltersPanel />
 
-            <img
-              src="/meymuni.gif"
-              alt="smol monke"
-              className="w-20 h-auto"
-            />
+            <img src="/meymuni.gif" alt="smol monke" className="w-20 h-auto" />
           </aside>
-
         </section>
 
         {/* SLIDER */}

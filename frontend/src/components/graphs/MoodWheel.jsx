@@ -152,16 +152,16 @@ function getDominantComponent(song) {
   return best;
 }
 
-export default function MoodWheel({
-  width = 750,
-  height = 350,
-}) {
+export default function MoodWheel({ width = 750, height = 350 }) {
   const filters = useFiltersStore((state) => state.filters);
   const { data } = useSongs(filters);
   const songs = Array.isArray(data) ? data : [];
 
   const [rotation, setRotation] = useState(0);
-  const [activePointKey, setActivePointKey] = useState(null);
+  const [hoveredPointKey, setHoveredPointKey] = useState(null);
+  const [selectedPointKey, setSelectedPointKey] = useState(null);
+
+  const activePointKey = selectedPointKey ?? hoveredPointKey;
 
   const dragStateRef = useRef({
     isDragging: false,
@@ -175,6 +175,12 @@ export default function MoodWheel({
   const outerRadius = size * 0.36;
   const innerRadius = size * 0.06;
   const bandWidth = (outerRadius - innerRadius) / 4;
+
+  const titleBlockWidth = Math.max(0, (width - size) / 2 - width * 0.04);
+  const titleLeft = width * 0.04;
+  const titleTop = height * 0.14;
+  const titleFontSize = clamp(height * 0.085, 18, 30);
+  const descriptionFontSize = clamp(height * 0.048, 11, 16);
 
   const sectors = useMemo(() => {
     return MOOD_OPTIONS.map((mood, index) => {
@@ -228,7 +234,10 @@ export default function MoodWheel({
           sector.startAngle +
           angularPadding +
           angleSeed *
-            Math.max(1, sector.endAngle - sector.startAngle - angularPadding * 2);
+            Math.max(
+              1,
+              sector.endAngle - sector.startAngle - angularPadding * 2,
+            );
 
         const { x, y } = polarToCartesian(center, center, radius, angle);
 
@@ -243,15 +252,7 @@ export default function MoodWheel({
         };
       })
       .filter(Boolean);
-  }, [
-    songs,
-    sectorByMood,
-    size,
-    innerRadius,
-    outerRadius,
-    bandWidth,
-    center,
-  ]);
+  }, [songs, sectorByMood, size, innerRadius, outerRadius, bandWidth, center]);
 
   const handlePointerDown = (event) => {
     if (!wheelRef.current) return;
@@ -293,6 +294,40 @@ export default function MoodWheel({
       }}
       className="relative h-[var(--box-height)] w-[var(--box-width)]"
     >
+      {titleBlockWidth > 0 && (
+        <div
+          className="pointer-events-none absolute z-[30]"
+          style={{
+            left: `${titleLeft}px`,
+            top: `${titleTop}px`,
+            width: `${titleBlockWidth}px`,
+          }}
+        >
+          <h3
+            className="font-madimi text-white"
+            style={{
+              fontSize: `${titleFontSize}px`,
+              lineHeight: 1.15,
+              textAlign: "left",
+            }}
+          >
+            The distribution of songs main mood
+          </h3>
+
+          <p
+            className="mt-3 font-afacad text-white/80"
+            style={{
+              fontSize: `${descriptionFontSize}px`,
+              lineHeight: 1.25,
+              textAlign: "left",
+            }}
+          >
+            the further from the center of the wheel, the bigger the mood
+            intensity
+          </p>
+        </div>
+      )}
+
       <div
         ref={wheelRef}
         className="absolute left-0 top-0 flex h-[var(--box-height)] w-[var(--box-width)] touch-none items-center justify-center select-none"
@@ -446,13 +481,15 @@ export default function MoodWheel({
                 size={point.size}
                 isActive={activePointKey === point.key}
                 activeColor="#131d3c"
-                onMouseEnter={() => setActivePointKey(point.key)}
-                onMouseLeave={() => setActivePointKey((current) => (
-                  current === point.key ? null : current
-                ))}
+                onMouseEnter={() => setHoveredPointKey(point.key)}
+                onMouseLeave={() =>
+                  setHoveredPointKey((current) =>
+                    current === point.key ? null : current,
+                  )
+                }
                 onClick={() =>
-                  setActivePointKey((current) =>
-                    current === point.key ? null : point.key
+                  setSelectedPointKey((current) =>
+                    current === point.key ? null : point.key,
                   )
                 }
                 pointX={point.x}

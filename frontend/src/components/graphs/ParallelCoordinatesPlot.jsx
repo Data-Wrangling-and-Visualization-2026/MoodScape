@@ -1,4 +1,5 @@
-import { memo, useMemo, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useFiltersStore } from "../../features/filters/filtersStore";
 import { useSongs } from "../../features/songs/useSongs";
 import SongDataPoint from "./SongDataPoint";
@@ -32,21 +33,37 @@ function distributeCountsEvenly(total, rows) {
 
 const MemoSongDataPoint = memo(SongDataPoint);
 
-export default function ParallelCoordinatesPlot({
-  width = 750,
-  height = 350,
-}) {
+export default function ParallelCoordinatesPlot({ width = 750, height = 350 }) {
   const filters = useFiltersStore((state) => state.filters);
   const { data } = useSongs(filters);
 
   const songs = data ?? [];
 
   const [hoveredSongIndex, setHoveredSongIndex] = useState(null);
-  const [clickedSongIndex, setClickedSongIndex] = useState(null);
+  const [selectedSongIndex, setSelectedSongIndex] = useState(null);
+  const [shouldRenderPoints, setShouldRenderPoints] = useState(false);
 
-  const activeSongIndex = hoveredSongIndex ?? clickedSongIndex;
+  const activeSongIndex = selectedSongIndex ?? hoveredSongIndex;
 
-  const layout = useMemo(() => {
+  useEffect(() => {
+    setShouldRenderPoints(false);
+
+    let frame1;
+    let frame2;
+
+    frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        setShouldRenderPoints(true);
+      });
+    });
+
+    return () => {
+      if (frame1) cancelAnimationFrame(frame1);
+      if (frame2) cancelAnimationFrame(frame2);
+    };
+  }, [songs, width, height]);
+
+  const axisLayout = useMemo(() => {
     const safeWidth = Math.max(width, 320);
     const safeHeight = Math.max(height, 220);
 
@@ -54,7 +71,10 @@ export default function ParallelCoordinatesPlot({
     const lineStartX = safeWidth * 0.145;
     const lineEndX = safeWidth * 0.915;
 
-    const topY = safeHeight * 0.2;
+    const titleBlockTop = safeHeight * 0.06;
+    const titleBlockHeight = safeHeight * 0.22;
+
+    const topY = safeHeight * 0.34;
     const linesBlockHeight = safeHeight * 0.5;
     const lineGap =
       MOOD_OPTIONS.length > 1
@@ -72,27 +92,46 @@ export default function ParallelCoordinatesPlot({
       return lineStartX + normalized * (lineEndX - lineStartX);
     };
 
-    const count = songs.length;
+    return {
+      safeWidth,
+      safeHeight,
+      labelX,
+      lineStartX,
+      lineEndX,
+      titleBlockTop,
+      titleBlockHeight,
+      getLineY,
+      getNoteX,
+      lineLabels: MOOD_OPTIONS.map((mood) => ({
+        mood,
+        y: getLineY(mood),
+        className: moodTextClass[mood] ?? "text-white",
+      })),
+    };
+  }, [width, height]);
 
-    if (!count) {
+  const pointsLayout = useMemo(() => {
+    if (!shouldRenderPoints) {
       return {
-        safeWidth,
-        safeHeight,
-        contentHeight: safeHeight,
-        labelX,
-        lineStartX,
-        lineEndX,
-        getLineY,
-        getNoteX,
+        contentHeight: axisLayout.safeHeight,
         pointSize: 16,
         pointPositions: [],
         visibleSongCount: 0,
         noteItems: [],
-        lineLabels: MOOD_OPTIONS.map((mood) => ({
-          mood,
-          y: getLineY(mood),
-          className: moodTextClass[mood] ?? "text-white",
-        })),
+        pathItems: [],
+      };
+    }
+
+    const { safeHeight, lineStartX, lineEndX, getLineY, getNoteX } = axisLayout;
+    const count = songs.length;
+
+    if (!count) {
+      return {
+        contentHeight: safeHeight,
+        pointSize: 16,
+        pointPositions: [],
+        visibleSongCount: 0,
+        noteItems: [],
         pathItems: [],
       };
     }
@@ -100,7 +139,7 @@ export default function ParallelCoordinatesPlot({
     const rowCount = Math.ceil(count / MAX_POINTS_PER_ROW);
     const rowSongCounts = distributeCountsEvenly(count, rowCount);
 
-    const firstPointRowY = safeHeight * 0.78;
+    const firstPointRowY = safeHeight * 0.92;
     const bottomPadding = safeHeight * 0.08;
     const bundleOffset = Math.min(32, safeHeight * 0.11);
 
@@ -143,7 +182,6 @@ export default function ParallelCoordinatesPlot({
     }
 
     const pointPositions = new Array(count);
-    let visibleSongCount = 0;
     let startIndex = 0;
 
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
@@ -168,7 +206,6 @@ export default function ParallelCoordinatesPlot({
         }
       }
 
-      visibleSongCount += rowCountValue;
       startIndex += rowCountValue;
     }
 
@@ -212,7 +249,8 @@ export default function ParallelCoordinatesPlot({
 
         if (!isVisibleSong) continue;
 
-        const bundleY = bundleYs[pointPosition.rowIndex] ?? pointPosition.y - 24;
+        const bundleY =
+          bundleYs[pointPosition.rowIndex] ?? pointPosition.y - 24;
         const controlY1 = bundleY - safeHeight * 0.18;
         const controlY2 = noteY + safeHeight * 0.18;
 
@@ -243,38 +281,25 @@ export default function ParallelCoordinatesPlot({
     }));
 
     return {
-      safeWidth,
-      safeHeight,
       contentHeight,
-      labelX,
-      lineStartX,
-      lineEndX,
-      getLineY,
       pointSize: globalPointSize,
       pointPositions,
-      visibleSongCount,
       noteItems,
       pathItems,
-      lineLabels: MOOD_OPTIONS.map((mood) => ({
-        mood,
-        y: getLineY(mood),
-        className: moodTextClass[mood] ?? "text-white",
-      })),
     };
-  }, [songs, width, height, activeSongIndex]);
+  }, [songs, axisLayout, activeSongIndex, shouldRenderPoints]);
 
-  if (!songs.length) {
-    return (
-      <div className="flex h-full items-center justify-center text-white">
-        <p className="font-madimi text-2xl">No songs found.</p>
-      </div>
-    );
-  }
+  const layout = {
+    ...axisLayout,
+    ...pointsLayout,
+  };
 
   const inactivePaths = layout.pathItems.filter(
-  (path) => !path.isSongActive && path.isAlwaysVisibleRow,
-);
+    (path) => !path.isSongActive && path.isAlwaysVisibleRow,
+  );
   const activePaths = layout.pathItems.filter((path) => path.isSongActive);
+
+  const emptyMessageY = layout.safeHeight * 0.98;
 
   return (
     <div className="flex h-full w-full items-center justify-center text-white">
@@ -320,6 +345,33 @@ export default function ParallelCoordinatesPlot({
             ))}
           </svg>
 
+          <div
+            className="pointer-events-none absolute z-30 flex flex-col items-start"
+            style={{
+              left: `${layout.lineStartX}px`,
+              top: `${layout.titleBlockTop}px`,
+              width: `${layout.lineEndX - layout.lineStartX}px`,
+            }}
+          >
+            <div className="font-madimi text-[24px] leading-none text-white">
+              General mood distribution
+            </div>
+
+            <div className="mt-3 max-w-[420px] font-afacad text-[14px] leading-[1.2] text-white/85">
+              The bigger the note, the more songs use this mood intensity.
+            </div>
+
+            <div className="mt-3 flex items-center gap-3 font-afacad text-[14px] leading-none text-white/85">
+              <span>mood intensity</span>
+
+              <div className="flex items-center gap-2 font-madimi text-white/90">
+                <span>0</span>
+                <ArrowRight size={14} strokeWidth={2} />
+                <span>10</span>
+              </div>
+            </div>
+          </div>
+
           {layout.lineLabels.map(({ mood, y, className }) => (
             <div
               key={mood}
@@ -334,98 +386,121 @@ export default function ParallelCoordinatesPlot({
             </div>
           ))}
 
-          {layout.noteItems.map((note) => (
+          {songs.length === 0 && shouldRenderPoints && (
             <div
-              key={note.key}
-              className={`pointer-events-none absolute z-25 font-madimi leading-none ${note.className}`}
+              className="pointer-events-none absolute z-30 font-madimi text-2xl text-white"
               style={{
-                left: `${note.x}px`,
-                top: `${note.y}px`,
-                fontSize: `${note.fontSize}px`,
-                transform: "translate(-50%, -62%)",
-                filter: note.isActive ? "drop-shadow(0 0 6px white)" : "none",
+                left: "50%",
+                top: `${emptyMessageY}px`,
+                transform: "translate(-50%, -50%)",
               }}
             >
-              ♪
+              No songs found.
             </div>
-          ))}
+          )}
 
-          {songs.map((song, songIndex) => {
-            const pointPosition = layout.pointPositions[songIndex];
-            if (!pointPosition) return null;
-
-            const isActive = activeSongIndex === songIndex;
-
-            return (
+          {shouldRenderPoints &&
+            layout.noteItems.map((note) => (
               <div
-                key={`point-${song.title}-${song.author}-${song.year}-${songIndex}`}
-                className="absolute"
+                key={note.key}
+                className={`pointer-events-none absolute z-25 font-madimi leading-none ${note.className}`}
                 style={{
-                  left: `${pointPosition.x}px`,
-                  top: `${pointPosition.y}px`,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: isActive ? 999999 : songIndex,
+                  left: `${note.x}px`,
+                  top: `${note.y}px`,
+                  fontSize: `${note.fontSize}px`,
+                  transform: "translate(-50%, -62%)",
+                  filter: note.isActive ? "drop-shadow(0 0 6px white)" : "none",
                 }}
               >
-                <MemoSongDataPoint
-                  song={song}
-                  size={layout.pointSize}
-                  isActive={isActive}
-                  activeColor="#6874ff"
-                  pointX={pointPosition.x}
-                  pointY={pointPosition.y}
-                  boxWidth={width}
-                  boxHeight={height}
-                  onMouseEnter={() => setHoveredSongIndex(songIndex)}
-                  onMouseLeave={() =>
-                    setHoveredSongIndex((current) =>
-                      current === songIndex ? null : current,
-                    )
-                  }
-                  onClick={() =>
-                    setClickedSongIndex((current) =>
-                      current === songIndex ? null : songIndex,
-                    )
-                  }
-                />
+                ♪
               </div>
-            );
-          })}
-
-          <svg
-            width={width}
-            height={layout.contentHeight}
-            viewBox={`0 0 ${width} ${layout.contentHeight}`}
-            className="pointer-events-none absolute inset-0 z-[15]"
-          >
-            <defs>
-              <filter id="activeGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow
-                  dx="0"
-                  dy="0"
-                  stdDeviation="3"
-                  floodColor="white"
-                  floodOpacity="0.9"
-                />
-              </filter>
-            </defs>
-
-            {activePaths.map((path) => (
-              <g
-                key={path.key}
-                className={path.className}
-                filter="url(#activeGlow)"
-              >
-                <path
-                  d={path.d}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </g>
             ))}
-          </svg>
+
+          {shouldRenderPoints &&
+            songs.map((song, songIndex) => {
+              const pointPosition = layout.pointPositions[songIndex];
+              if (!pointPosition) return null;
+
+              const isActive = activeSongIndex === songIndex;
+
+              return (
+                <div
+                  key={`point-${song.title}-${song.author}-${song.year}-${songIndex}`}
+                  className="absolute"
+                  style={{
+                    left: `${pointPosition.x}px`,
+                    top: `${pointPosition.y}px`,
+                    transform: "translate(-50%, -50%)",
+                    zIndex: isActive ? 999999 : songIndex,
+                  }}
+                >
+                  <MemoSongDataPoint
+                    song={song}
+                    size={layout.pointSize}
+                    isActive={isActive}
+                    activeColor="#6874ff"
+                    pointX={pointPosition.x}
+                    pointY={pointPosition.y}
+                    boxWidth={width}
+                    boxHeight={height}
+                    onMouseEnter={() => setHoveredSongIndex(songIndex)}
+                    onMouseLeave={() =>
+                      setHoveredSongIndex((current) =>
+                        current === songIndex ? null : current,
+                      )
+                    }
+                    onClick={() =>
+                      setSelectedSongIndex((current) =>
+                        current === songIndex ? null : songIndex,
+                      )
+                    }
+                  />
+                </div>
+              );
+            })}
+
+          {shouldRenderPoints && (
+            <svg
+              width={width}
+              height={layout.contentHeight}
+              viewBox={`0 0 ${width} ${layout.contentHeight}`}
+              className="pointer-events-none absolute inset-0 z-[15]"
+            >
+              <defs>
+                <filter
+                  id="activeGlow"
+                  x="-50%"
+                  y="-50%"
+                  width="200%"
+                  height="200%"
+                >
+                  <feDropShadow
+                    dx="0"
+                    dy="0"
+                    stdDeviation="3"
+                    floodColor="white"
+                    floodOpacity="0.9"
+                  />
+                </filter>
+              </defs>
+
+              {activePaths.map((path) => (
+                <g
+                  key={path.key}
+                  className={path.className}
+                  filter="url(#activeGlow)"
+                >
+                  <path
+                    d={path.d}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </g>
+              ))}
+            </svg>
+          )}
         </div>
       </div>
     </div>
