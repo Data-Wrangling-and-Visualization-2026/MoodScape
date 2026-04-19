@@ -13,6 +13,7 @@ export default function SongDataPoint({
   song,
   size = 16,
   isActive = false,
+  activeColor = "white",
   onMouseEnter,
   onMouseLeave,
   onClick,
@@ -21,18 +22,22 @@ export default function SongDataPoint({
   boxWidth = 0,
   boxHeight = 0,
 }) {
-  const currentSize = isActive ? size * 1.25 : size;
-
   const buttonRef = useRef(null);
   const popupRef = useRef(null);
+
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
 
   const [popupStyle, setPopupStyle] = useState({
     top: 0,
     left: 0,
   });
 
+  const isShown = isActive || isPinned || isHovered;
+  const currentSize = isShown ? size * 1.25 : size;
+
   useLayoutEffect(() => {
-    if (!isActive) return;
+    if (!isShown) return;
 
     const updatePopupPosition = () => {
       const buttonEl = buttonRef.current;
@@ -92,7 +97,7 @@ export default function SongDataPoint({
       let top = buttonRect.top + buttonRect.height / 2 - popupRect.height / 2;
 
       if (top + popupRect.height > visibleBottom) {
-        top = visibleBottom - popupRect.height;
+        top = visibleBottom - popupRect.height - VIEWPORT_PADDING;
       }
 
       if (top < visibleTop) {
@@ -114,31 +119,48 @@ export default function SongDataPoint({
       window.removeEventListener("resize", updatePopupPosition);
       window.removeEventListener("scroll", updatePopupPosition, true);
     };
-  }, [isActive, song, pointX, pointY, boxWidth, boxHeight]);
+  }, [isShown, song, pointX, pointY, boxWidth, boxHeight]);
+
+  const handleMouseEnter = (event) => {
+    setIsHovered(true);
+    onMouseEnter?.(event);
+  };
+
+  const handleMouseLeave = (event) => {
+    setIsHovered(false);
+    onMouseLeave?.(event);
+  };
+
+  const handleClick = (event) => {
+    event.stopPropagation();
+
+    setIsPinned((prev) => !prev);
+    onClick?.(event);
+  };
 
   return (
     <div
       className="relative inline-flex items-center justify-center"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <button
         ref={buttonRef}
         type="button"
         aria-label={`Open info for ${song.title}`}
-        onClick={onClick}
+        onClick={handleClick}
         className="cursor-pointer rounded-full transition-all duration-200 ease-out"
         style={{
           width: `${currentSize}px`,
           height: `${currentSize}px`,
-          backgroundColor: "white",
-          boxShadow: isActive
-            ? "0 0 10px rgba(255,255,255,0.95)"
-            : "0 0 6px rgba(0,0,0,0.7)",
+          backgroundColor: isShown ? activeColor : "white",
+          boxShadow: isShown
+            ? `0 0 10px ${activeColor}`
+            : "0 0 4px rgba(0,0,0,0.4)",
         }}
       />
 
-      {isActive &&
+      {isShown &&
         typeof document !== "undefined" &&
         createPortal(
           <div

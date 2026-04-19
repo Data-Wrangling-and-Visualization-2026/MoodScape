@@ -187,7 +187,7 @@ export default function HeatmapGraph({
 
     const outerPadLeft = safeWidth * 0.04;
     const outerPadRight = safeWidth * 0.1;
-    const outerPadTop = safeHeight * 0.06;
+    const outerPadTop = safeHeight * 0.15;
     const outerPadBottom = safeHeight * 0.09;
 
     const legendWidth = Math.min(safeWidth * 0.18, 160);
@@ -295,7 +295,7 @@ export default function HeatmapGraph({
 
   return (
     <div
-      className={`relative overflow-hidden ${className}`}
+      className={`srelative overflow-hidden ${className}`}
       style={{ width, height }}
     >
       {/* Bars */}

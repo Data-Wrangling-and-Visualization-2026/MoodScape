@@ -54,7 +54,7 @@ export default function ParallelCoordinatesPlot({
     const lineStartX = safeWidth * 0.145;
     const lineEndX = safeWidth * 0.915;
 
-    const topY = safeHeight * 0.12;
+    const topY = safeHeight * 0.2;
     const linesBlockHeight = safeHeight * 0.5;
     const lineGap =
       MOOD_OPTIONS.length > 1
@@ -371,6 +371,7 @@ export default function ParallelCoordinatesPlot({
                   song={song}
                   size={layout.pointSize}
                   isActive={isActive}
+                  activeColor="#6874ff"
                   pointX={pointPosition.x}
                   pointY={pointPosition.y}
                   boxWidth={width}

@@ -12,7 +12,7 @@ export default function SongPointPopup({ song }) {
     <div
       className="
         custom-scrollbar
-        w-40 max-h-25 overflow-y-auto rounded-lg border border-gray-200
+        w-40 max-h-35 overflow-y-auto rounded-lg border border-gray-200
         bg-white p-4 shadow-lg
       "
     >

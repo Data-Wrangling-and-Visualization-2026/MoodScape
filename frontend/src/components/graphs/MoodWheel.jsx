@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { MOOD_OPTIONS } from "../../features/filters/moodOptions";
 import { useFiltersStore } from "../../features/filters/filtersStore";
 import { useSongs } from "../../features/songs/useSongs";
+import SongDataPoint from "./SongDataPoint";
 
 const moodFillClasses = {
   anger: {
@@ -103,11 +104,6 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-/**
- * Deterministic pseudo-random number in [0, 1)
- * based on a string key, so points stay in place
- * between renders.
- */
 function seededUnitFromString(key) {
   let hash = 2166136261;
 
@@ -165,6 +161,7 @@ export default function MoodWheel({
   const songs = Array.isArray(data) ? data : [];
 
   const [rotation, setRotation] = useState(0);
+  const [activePointKey, setActivePointKey] = useState(null);
 
   const dragStateRef = useRef({
     isDragging: false,
@@ -198,8 +195,8 @@ export default function MoodWheel({
   }, [sectors]);
 
   const plottedPoints = useMemo(() => {
-    const pointSize = clamp(size * 0.014, 4, 8);
-    const pointPadding = pointSize * 1.5;
+    const pointSize = clamp(size * 0.02, 8, 16);
+    const pointPadding = pointSize * 0.9;
     const angularPadding = 6;
 
     return songs
@@ -224,9 +221,8 @@ export default function MoodWheel({
           usableInnerRadius +
           (clampedWeight / 10) * (usableOuterRadius - usableInnerRadius);
 
-        const maxRadiusJitter = Math.min(bandWidth * 0.2, pointSize * 1.2);
-        const radius =
-          baseRadius + (jitterSeed * 2 - 1) * maxRadiusJitter;
+        const maxRadiusJitter = Math.min(bandWidth * 0.2, pointSize * 0.9);
+        const radius = baseRadius + (jitterSeed * 2 - 1) * maxRadiusJitter;
 
         const angle =
           sector.startAngle +
@@ -295,11 +291,11 @@ export default function MoodWheel({
         "--box-width": `${width}px`,
         "--box-height": `${height}px`,
       }}
-      className="flex h-[var(--box-height)] w-[var(--box-width)] items-center justify-center"
+      className="relative h-[var(--box-height)] w-[var(--box-width)]"
     >
       <div
         ref={wheelRef}
-        className="relative flex h-[var(--box-height)] w-[var(--box-width)] touch-none items-center justify-center select-none"
+        className="absolute left-0 top-0 flex h-[var(--box-height)] w-[var(--box-width)] touch-none items-center justify-center select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDragging}
@@ -377,27 +373,6 @@ export default function MoodWheel({
             );
           })}
 
-          {/* data points */}
-          <g>
-            {plottedPoints.map((point) => (
-              <g key={point.key}>
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={point.size}
-                  fill="white"
-                  stroke="rgba(0,0,0,0.35)"
-                  strokeWidth="1.25"
-                  className="cursor-pointer"
-                >
-                  <title>
-                    {`${point.song?.title ?? "Song"} • ${point.song?.year ?? "Unknown year"} • ${point.mood}: ${point.weight}`}
-                  </title>
-                </circle>
-              </g>
-            ))}
-          </g>
-
           <circle cx={center} cy={center} r={innerRadius} fill="white" />
 
           <circle
@@ -445,6 +420,78 @@ export default function MoodWheel({
             </text>
           ))}
         </svg>
+
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2"
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            transformOrigin: "50% 50%",
+          }}
+        >
+          {plottedPoints.map((point) => (
+            <div
+              key={point.key}
+              className="pointer-events-auto absolute"
+              style={{
+                left: `${point.x}px`,
+                top: `${point.y}px`,
+                transform: "translate(-50%, -50%)",
+                zIndex: activePointKey === point.key ? 50 : 10,
+              }}
+            >
+              <SongDataPoint
+                song={point.song}
+                size={point.size}
+                isActive={activePointKey === point.key}
+                activeColor="#131d3c"
+                onMouseEnter={() => setActivePointKey(point.key)}
+                onMouseLeave={() => setActivePointKey((current) => (
+                  current === point.key ? null : current
+                ))}
+                onClick={() =>
+                  setActivePointKey((current) =>
+                    current === point.key ? null : point.key
+                  )
+                }
+                pointX={point.x}
+                pointY={point.y}
+                boxWidth={width}
+                boxHeight={height}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-20 right-20 z-[60] flex flex-col items-end">
+        <svg
+          width="120"
+          height="70"
+          viewBox="0 0 120 70"
+          className="overflow-visible"
+        >
+          <path
+            d="M 108 58 C 95 20, 60 10, 38 10"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 43 4 L 38 10 L 44 17"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        <span className="mt-[-4px] font-madimi text-xl text-white">
+          spin it!
+        </span>
       </div>
     </div>
   );
