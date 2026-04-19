@@ -59,7 +59,7 @@ services:
 
   bd_go:
     build: 
-      context: ./services/bd_service_go # Путь к контексту сборки
+      context: ./backend/services/bd_service_go # Путь к контексту сборки
       dockerfile: Dockerfile           # Имя Dockerfile
     container_name: go_track_service
     ports:
