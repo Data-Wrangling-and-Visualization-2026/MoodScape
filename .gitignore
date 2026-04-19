@@ -110,6 +110,7 @@ celerybeat.pid
 
 # Environments
 .env
+config.env
 .venv
 env/
 venv/
@@ -438,3 +439,4 @@ config/*.local.yaml
 # Local storage
 storage/*
 !storage/.gitkeep
+data.csv

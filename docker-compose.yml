@@ -11,7 +11,9 @@ services:
       - "${BD_SERVICE_DB_PORT:-5432}:5432"
     volumes:
       - bd_service_postgres_data:/var/lib/postgresql/data
-      - ./services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/services/bd_service/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./backend/services/bd_service/events_v1.csv:/docker-entrypoint-initdb.d/events_v1.csv
+      - ./backend/services/bd_service/import_events.sql:/docker-entrypoint-initdb.d/02-import-events.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${BD_SERVICE_DB_USER:-bd_user} -d ${BD_SERVICE_DB_NAME:-bd_trackdb}"]
       interval: 10s
@@ -24,7 +26,7 @@ services:
   # Основной сервис bd_service
   bd_service_app:
     build:
-      context: ./services/bd_service  # Путь к контексту сборки
+      context: ./backend/services/bd_service  # Путь к контексту сборки
       dockerfile: Dockerfile           # Имя Dockerfile
     container_name: bd_service_app
     ports:
@@ -48,11 +50,36 @@ services:
         condition: service_healthy
     volumes:
       # Монтируем код для hot-reload в разработке
-      - ./services/bd_service:/app
+      - ./backend/services/bd_service:/app
     networks:
       - bd_service_network
     restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+  bd_go:
+    build: 
+      context: ./backend/services/bd_service_go # Путь к контексту сборки
+      dockerfile: Dockerfile           # Имя Dockerfile
+    container_name: go_track_service
+    ports:
+      - "${SERVER_PORT:-8004}:8004"
+    environment:
+      DB_HOST: bd_service_postgres
+      DB_PORT: 5432
+      DB_USER: ${BD_SERVICE_DB_USER}
+      DB_PASSWORD: ${BD_SERVICE_DB_PASSWORD}
+      DB_NAME: ${BD_SERVICE_DB_NAME}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      SERVER_PORT: 8004
+      SERVER_READ_TIMEOUT: 5
+      SERVER_WRITE_TIMEOUT: 10
+    depends_on:
+      bd_service_postgres:
+        condition: service_healthy
+    networks:
+      - bd_service_network
+    restart: unless-stopped
 
   # Опционально: pgAdmin для управления БД
   bd_service_pgadmin:
@@ -73,7 +100,7 @@ services:
     restart: unless-stopped
   parse_service_app:
     build:
-      context: ..
+      context: .
       dockerfile: backend/services/parse_service/Dockerfile
     container_name: parse_service_app
     ports:
@@ -101,7 +128,7 @@ services:
 
   llm_service:
     container_name: llm_service
-    build: ./services/llm_service
+    build: ./backend/services/llm_service
     ports: 
       - "${LLM_SERVICE_PORT:-8002}:8002"
     restart: unless-stopped
@@ -116,7 +143,7 @@ services:
     - PARSER_TIMEOUT=30
     
     volumes:
-      - ./services/llm_service:/app
+      - ./backend/services/llm_service:/app
     networks:
       - bd_service_network
 
@@ -154,6 +181,27 @@ services:
         curl -X POST http://ollama:11434/api/pull -H 'Content-Type: application/json' -d '{\"name\": \"nomic-embed-text\"}';
         echo 'Инициализация завершена.';
       "
+  frontend:
+    container_name: moodscape-frontend
+    working_dir: /app
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
+    command: npm run dev -- --port ${FRONTEND_PORT:-3000} --host 0.0.0.0
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8004}
+
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - bd_service_app
+      - bd_go
+    restart: unless-stopped
+    networks:
+      - bd_service_network
 
 networks:
   bd_service_network:

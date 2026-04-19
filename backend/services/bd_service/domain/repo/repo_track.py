@@ -50,3 +50,18 @@ class TrackRepository(ABC):
     async def get_statistics(self) -> Dict[str, Any]:
         """Get stats"""
         pass
+
+    @abstractmethod
+    async def filter(
+        self,
+        genre: Optional[str] = None,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+        emotion: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: str = "release_date",
+        sort_order: str = "desc"
+    ) -> List[Track]:
+        pass
