@@ -30,19 +30,18 @@ export default function ReleaseYearSlider() {
   const isCustomDragging = dragStartX !== null;
 
   useEffect(() => {
-  if (!years.length) return;
+    if (!years.length) return;
 
-  const nextLeft = filters.yearFrom ?? minYear;
-  const nextRight = filters.yearTo ?? maxYear;
+    const nextLeft = filters.yearFrom ?? minYear;
+    const nextRight = filters.yearTo ?? maxYear;
 
-  setLeftYear(Math.max(minYear, Math.min(nextLeft, maxYear)));
-  setRightYear(Math.min(maxYear, Math.max(nextRight, minYear)));
-  setYearRange(
-    Math.max(minYear, Math.min(nextLeft, maxYear)),
-    Math.min(maxYear, Math.max(nextRight, minYear))
-  );
-}, [years, minYear, maxYear, filters.yearFrom, filters.yearTo, setYearRange]);
-
+    setLeftYear(Math.max(minYear, Math.min(nextLeft, maxYear)));
+    setRightYear(Math.min(maxYear, Math.max(nextRight, minYear)));
+    setYearRange(
+      Math.max(minYear, Math.min(nextLeft, maxYear)),
+      Math.min(maxYear, Math.max(nextRight, minYear)),
+    );
+  }, [years, minYear, maxYear, filters.yearFrom, filters.yearTo, setYearRange]);
 
   const range = maxYear - minYear || 1;
   const leftPercent = ((leftYear - minYear) / range) * 100;
@@ -100,9 +99,7 @@ export default function ReleaseYearSlider() {
   return (
     <section className="mt-4 flex w-full justify-center text-white">
       <div className="flex w-full max-w-3xl flex-col items-center">
-        <h2 className="text-center font-afacad text-2xl">
-          year of release
-        </h2>
+        <h2 className="text-center font-afacad text-2xl">year of release</h2>
 
         <div className="flex w-full items-start gap-4 font-madimi text-2xl">
           <span className="pt-1">{minYear}</span>

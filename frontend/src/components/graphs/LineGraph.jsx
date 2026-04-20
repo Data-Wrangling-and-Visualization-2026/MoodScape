@@ -5,22 +5,6 @@ import { useSongs } from "../../features/songs/useSongs";
 import { moodTextClass } from "../../features/graphs/moodTextColours";
 import { MOOD_OPTIONS } from "../../features/filters/moodOptions";
 
-/**
- * IMPORTANT:
- * - This component is fully size-driven by `width` and `height`.
- * - All spacing, font sizes, checkbox sizes, paddings, and stroke widths
- *   are calculated from those dimensions so the graph scales with the box.
- * - The mood order is taken exactly from MOOD_OPTIONS.
- *
- * DATA LOGIC:
- * For each year and each mood:
- * - sum all weights of that mood in that year
- * - count how many times that mood appears in that year
- * - average = sum / count
- *
- * If a mood does not appear for some year, its value is treated as 0.
- */
-
 /* -------------------------------------------------------------------------- */
 /*                                Color helpers                               */
 /* -------------------------------------------------------------------------- */
@@ -32,15 +16,6 @@ const moodStrokeClass = {
   disgust: "stroke-green-pastel",
   sadness: "stroke-blue-pastel",
   fear: "stroke-purple-pastel",
-};
-
-const moodFillClass = {
-  anger: "fill-red-pastel",
-  anticipation: "fill-orange-pastel",
-  happiness: "fill-yellow-pastel",
-  disgust: "fill-green-pastel",
-  sadness: "fill-blue-pastel",
-  fear: "fill-purple-pastel",
 };
 
 const moodBgClass = {
@@ -124,6 +99,27 @@ function buildAreaPath(points, chartTop, chartBottomY) {
   return `${linePath} L ${last.x} ${chartBottomY} L ${first.x} ${chartBottomY} Z`;
 }
 
+function getRoundYearTicks(minYear, maxYear) {
+  if (!Number.isFinite(minYear) || !Number.isFinite(maxYear)) return [];
+
+  const span = Math.max(0, maxYear - minYear);
+
+  let step = 5;
+  if (span > 80) step = 20;
+  else if (span > 40) step = 10;
+
+  const start = Math.ceil(minYear / step) * step;
+  const ticks = [];
+
+  for (let year = start; year <= maxYear; year += step) {
+    if (year !== minYear && year !== maxYear) {
+      ticks.push(year);
+    }
+  }
+
+  return ticks;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                Main component                              */
 /* -------------------------------------------------------------------------- */
@@ -136,7 +132,7 @@ export default function LineGraph({ width = 750, height = 350 }) {
     MOOD_OPTIONS.reduce((acc, mood) => {
       acc[mood] = true;
       return acc;
-    }, {})
+    }, {}),
   );
 
   /* ------------------------------------------------------------------------ */
@@ -147,11 +143,11 @@ export default function LineGraph({ width = 750, height = 350 }) {
     const safeWidth = Math.max(width, 320);
     const safeHeight = Math.max(height, 220);
 
-    const rightLegendWidth = safeWidth * 0.23;
-    const topPadding = safeHeight * 0.08;
-    const leftPadding = safeWidth * 0.06;
-    const rightPadding = safeWidth * 0.03;
-    const bottomPadding = safeHeight * 0.13;
+    const rightLegendWidth = safeWidth * 0.2;
+    const topPadding = safeHeight * 0.15;
+    const leftPadding = safeWidth * 0.09;
+    const rightPadding = safeWidth * 0.025;
+    const bottomPadding = safeHeight * 0.14;
 
     const chartLeft = leftPadding;
     const chartRight = safeWidth - rightLegendWidth - rightPadding;
@@ -178,13 +174,20 @@ export default function LineGraph({ width = 750, height = 350 }) {
 
       axisStrokeWidth: clamp(Math.min(safeWidth, safeHeight) * 0.004, 1.25, 3),
       lineStrokeWidth: 1,
-      gridStrokeWidth: clamp(Math.min(safeWidth, safeHeight) * 0.0025, 0.7, 1.5),
-      legendFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.05, 12, 20),
-      axisFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.05, 12, 18),
-      yTickFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.04, 11, 16),
-      checkboxSize: clamp(Math.min(safeWidth, safeHeight) * 0.075, 16, 28),
-      checkIconSize: clamp(Math.min(safeWidth, safeHeight) * 0.045, 10, 18),
-      legendRowGap: clamp(safeHeight * 0.03, 8, 16),
+      gridStrokeWidth: clamp(
+        Math.min(safeWidth, safeHeight) * 0.0025,
+        0.7,
+        1.5,
+      ),
+      legendFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.039, 10, 15),
+      axisFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.042, 11, 16),
+      roundYearFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.032, 9, 12),
+      yTickFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.03, 8, 12),
+      checkboxSize: clamp(Math.min(safeWidth, safeHeight) * 0.07, 15, 24),
+      checkIconSize: clamp(Math.min(safeWidth, safeHeight) * 0.04, 9, 16),
+      legendRowGap: clamp(safeHeight * 0.028, 7, 14),
+      roundYearTickHeight: clamp(safeHeight * 0.028, 6, 11),
+      titleFontSize: clamp(Math.min(safeWidth, safeHeight) * 0.05, 14, 22),
     };
   }, [width, height]);
 
@@ -272,13 +275,22 @@ export default function LineGraph({ width = 750, height = 350 }) {
 
       result[mood] = {
         points,
-        linePath: buildSmoothLinePath(points, layout.chartTop, layout.chartBottom),
+        linePath: buildSmoothLinePath(
+          points,
+          layout.chartTop,
+          layout.chartBottom,
+        ),
         areaPath: buildAreaPath(points, layout.chartTop, layout.chartBottom),
       };
     }
 
     return result;
   }, [yearlyMoodAverages, minYear, maxYear, layout]);
+
+  const roundYearTicks = useMemo(
+    () => getRoundYearTicks(minYear, maxYear),
+    [minYear, maxYear],
+  );
 
   /* ------------------------------------------------------------------------ */
   /*                              Event handlers                              */
@@ -292,6 +304,11 @@ export default function LineGraph({ width = 750, height = 350 }) {
   };
 
   const yTicks = Array.from({ length: 11 }, (_, i) => i);
+  const yearSpan = Math.max(1, maxYear - minYear);
+  const yearToX = (year) => {
+    const normalized = (year - minYear) / yearSpan;
+    return layout.chartLeft + normalized * layout.chartWidth;
+  };
 
   return (
     <div
@@ -321,6 +338,18 @@ export default function LineGraph({ width = 750, height = 350 }) {
           ))}
         </defs>
 
+        <text
+          x={(layout.chartLeft + layout.chartRight) / 2}
+          y={layout.chartTop * 0.6}
+          fill="white"
+          fontSize={layout.titleFontSize}
+          fontFamily="Madimi One, sans-serif"
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
+          Average mood trend by year
+        </text>
+
         {yTicks.map((tick) => {
           const y = layout.chartBottom - (tick / 10) * layout.chartHeight;
 
@@ -337,16 +366,51 @@ export default function LineGraph({ width = 750, height = 350 }) {
               />
 
               <text
-                x={layout.chartLeft - width * 0.015}
+                x={layout.chartLeft - width * 0.018}
                 y={y}
                 fill="white"
-                fillOpacity="0.9"
+                fillOpacity="0.45"
                 fontSize={layout.yTickFontSize}
                 fontFamily="Madimi One, sans-serif"
                 textAnchor="end"
                 dominantBaseline="middle"
               >
                 {tick}
+              </text>
+            </g>
+          );
+        })}
+
+        {roundYearTicks.map((year) => {
+          const x = yearToX(year);
+
+          return (
+            <g key={`round-year-${year}`}>
+              <line
+                x1={x}
+                y1={layout.chartBottom}
+                x2={x}
+                y2={layout.chartBottom + layout.roundYearTickHeight}
+                stroke="white"
+                strokeOpacity="0.2"
+                strokeWidth={layout.gridStrokeWidth}
+              />
+
+              <text
+                x={x}
+                y={
+                  layout.chartBottom +
+                  layout.roundYearTickHeight +
+                  height * 0.018
+                }
+                fill="white"
+                fillOpacity="0.35"
+                fontSize={layout.roundYearFontSize}
+                fontFamily="Madimi One, sans-serif"
+                textAnchor="middle"
+                dominantBaseline="hanging"
+              >
+                {year}
               </text>
             </g>
           );
@@ -403,28 +467,57 @@ export default function LineGraph({ width = 750, height = 350 }) {
           strokeWidth={layout.axisStrokeWidth}
         />
 
+        <text
+          x={layout.chartRight + width * 0.018}
+          y={layout.chartBottom + height * 0.005}
+          fill="white"
+          fontSize={layout.axisFontSize}
+          fontFamily="Madimi One, sans-serif"
+          textAnchor="start"
+          dominantBaseline="middle"
+        >
+          release year
+        </text>
+
+        <text
+          x={layout.chartLeft - width * 0.045}
+          y={(layout.chartTop + layout.chartBottom) / 2}
+          fill="white"
+          fontSize={layout.axisFontSize}
+          fontFamily="Madimi One, sans-serif"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          transform={`rotate(-90 ${layout.chartLeft - width * 0.045} ${(layout.chartTop + layout.chartBottom) / 2})`}
+        >
+          mood intensity
+        </text>
+
         {yearlyMoodAverages.length > 0 && (
           <>
             <text
-              x={layout.chartLeft}
-              y={layout.chartBottom + height * 0.05}
+              x={layout.chartLeft - width * 0.005}
+              y={
+                layout.chartBottom + layout.roundYearTickHeight + height * 0.04
+              }
               fill="white"
               fontSize={layout.axisFontSize}
               fontFamily="Madimi One, sans-serif"
-              textAnchor="start"
-              dominantBaseline="hanging"
+              textAnchor="end"
+              dominantBaseline="middle"
             >
               {minYear}
             </text>
 
             <text
-              x={layout.chartRight}
-              y={layout.chartBottom + height * 0.05}
+              x={layout.chartRight + width * 0.005}
+              y={
+                layout.chartBottom + layout.roundYearTickHeight + height * 0.04
+              }
               fill="white"
               fontSize={layout.axisFontSize}
               fontFamily="Madimi One, sans-serif"
-              textAnchor="end"
-              dominantBaseline="hanging"
+              textAnchor="start"
+              dominantBaseline="middle"
             >
               {maxYear}
             </text>
@@ -470,7 +563,7 @@ export default function LineGraph({ width = 750, height = 350 }) {
         style={{
           width: layout.rightLegendWidth,
           paddingTop: layout.topPadding * 0.9,
-          paddingRight: width * 0.03,
+          paddingRight: width * 0.02,
         }}
       >
         <div
@@ -484,7 +577,7 @@ export default function LineGraph({ width = 750, height = 350 }) {
               key={mood}
               type="button"
               onClick={() => toggleMood(mood)}
-              className="flex items-center justify-start gap-3 bg-transparent text-left text-white"
+              className="flex items-center justify-start gap-2.5 bg-transparent text-left text-white"
             >
               <span
                 className={[

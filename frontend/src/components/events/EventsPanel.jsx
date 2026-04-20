@@ -17,13 +17,16 @@ export default function EventsPanel() {
   }, [events]);
 
   const [currentYearIndex, setCurrentYearIndex] = useState(0);
+  const [isEditingYear, setIsEditingYear] = useState(false);
+  const [yearInput, setYearInput] = useState("");
+  const [warning, setWarning] = useState("");
 
   const scrollRef = useRef(null);
+  const yearInputRef = useRef(null);
 
   useEffect(() => {
     setCurrentYearIndex(0);
   }, [years]);
-
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -32,6 +35,21 @@ export default function EventsPanel() {
   }, [currentYearIndex]);
 
   const currentYear = years[currentYearIndex];
+  const minYear = years.length ? years[0] : undefined;
+  const maxYear = years.length ? years[years.length - 1] : undefined;
+
+  useEffect(() => {
+    if (!isEditingYear) {
+      setYearInput(currentYear != null ? String(currentYear) : "");
+    }
+  }, [currentYear, isEditingYear]);
+
+  useEffect(() => {
+    if (isEditingYear && yearInputRef.current) {
+      yearInputRef.current.focus();
+      yearInputRef.current.select();
+    }
+  }, [isEditingYear]);
 
   const currentYearEvents = useMemo(() => {
     if (!currentYear) return [];
@@ -39,11 +57,61 @@ export default function EventsPanel() {
   }, [events, currentYear]);
 
   const goToPreviousYear = () => {
+    setWarning("");
     setCurrentYearIndex((prev) => Math.max(prev - 1, 0));
   };
 
   const goToNextYear = () => {
+    setWarning("");
     setCurrentYearIndex((prev) => Math.min(prev + 1, years.length - 1));
+  };
+
+  const startEditingYear = () => {
+    if (!years.length) return;
+    setWarning("");
+    setYearInput(String(currentYear));
+    setIsEditingYear(true);
+  };
+
+  const cancelEditingYear = () => {
+    setYearInput(currentYear != null ? String(currentYear) : "");
+    setIsEditingYear(false);
+  };
+
+  const confirmYearInput = () => {
+    if (!years.length) {
+      setIsEditingYear(false);
+      return;
+    }
+
+    const parsedYear = Number(yearInput);
+
+    if (
+      yearInput.trim() === "" ||
+      Number.isNaN(parsedYear) ||
+      parsedYear < minYear ||
+      parsedYear > maxYear
+    ) {
+      setWarning(`Please enter a year from ${minYear} to ${maxYear}.`);
+      setYearInput(String(currentYear));
+      setIsEditingYear(false);
+      return;
+    }
+
+    const matchedIndex = years.findIndex((year) => year === parsedYear);
+
+    if (matchedIndex === -1) {
+      setWarning(
+        `No events exist for ${parsedYear}. Returning to ${currentYear}.`,
+      );
+      setYearInput(String(currentYear));
+      setIsEditingYear(false);
+      return;
+    }
+
+    setWarning("");
+    setCurrentYearIndex(matchedIndex);
+    setIsEditingYear(false);
   };
 
   const isLeftDisabled = currentYearIndex === 0;
@@ -67,9 +135,35 @@ export default function EventsPanel() {
           <ChevronLeft className="h-5 w-5 text-white" />
         </button>
 
-        <p className="min-w-[60px] text-center font-madimi text-2xl text-white">
-          {currentYear ?? "—"}
-        </p>
+        {isEditingYear ? (
+          <input
+            ref={yearInputRef}
+            type="text"
+            value={yearInput}
+            onChange={(e) => {
+              const digitsOnly = e.target.value.replace(/\D/g, "");
+              setYearInput(digitsOnly);
+            }}
+            onBlur={confirmYearInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                confirmYearInput();
+              }
+              if (e.key === "Escape") {
+                cancelEditingYear();
+              }
+            }}
+            className="min-w-[60px] border-none bg-transparent text-center font-madimi text-2xl text-white outline-none"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEditingYear}
+            className="min-w-[60px] text-center font-madimi text-2xl text-white"
+          >
+            {currentYear ?? "—"}
+          </button>
+        )}
 
         <button
           type="button"
@@ -84,6 +178,12 @@ export default function EventsPanel() {
           <ChevronRight className="h-5 w-5 text-white" />
         </button>
       </div>
+
+      {warning ? (
+        <p className="mb-2 px-4 font-afacad text-sm leading-snug text-yellow-300">
+          {warning}
+        </p>
+      ) : null}
 
       {/* scrollable event box */}
       <div
